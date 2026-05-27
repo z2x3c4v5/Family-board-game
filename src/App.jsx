@@ -72,17 +72,17 @@ const buildTask = (cell) => {
 // ===== 음성 인식 정확도 향상 유틸 =====
 // 흔한 오인식/발음 변형을 흡수하기 위한 별칭표 (같은 단어의 변형만 등록)
 const ALIASES = {
-  he: ['he', 'hes', 'heis', 'hed'],
-  she: ['she', 'shes', 'sheis'],
-  who: ['who', 'hoo', 'hu', 'whos', 'whois', 'hooz'],
-  father: ['father', 'farther', 'fodder', 'fadder', 'faather', 'fathers', 'fatha'],
-  mother: ['mother', 'mudder', 'mudda', 'mothers', 'motha', 'mader'],
-  brother: ['brother', 'brudder', 'brudda', 'brothers', 'brotha', 'budder'],
-  sister: ['sister', 'sista', 'sistah', 'sisters', 'cister'],
-  grandfather: ['grandfather', 'granfather', 'grandfodder', 'granfodder', 'grandfathers'],
-  grandmother: ['grandmother', 'granmother', 'grandmudder', 'granmudder', 'grandmothers'],
-  tall: ['tall', 'tal', 'tahl', 'taul', 'taller', 'taw', 'tawl'],
-  cute: ['cute', 'coot', 'kyoot', 'cuter', 'kute', 'acute', 'cuteee'],
+  he: ['he', 'hes', 'heis', 'hed', 'hee', 'heez', 'hez', 'his'],
+  she: ['she', 'shes', 'sheis', 'shi', 'shee', 'sheez', 'shez'],
+  who: ['who', 'hoo', 'hu', 'whos', 'whois', 'hooz', 'whu'],
+  father: ['father', 'farther', 'fodder', 'fadder', 'fadda', 'faather', 'fathers', 'fatha', 'fada', 'fadha', 'fathor', 'fathuh', 'fadher'],
+  mother: ['mother', 'mudder', 'mudda', 'mothers', 'motha', 'mader', 'madder', 'mathor', 'mada', 'mathuh', 'mudha'],
+  brother: ['brother', 'brudder', 'brudda', 'brothers', 'brotha', 'budder', 'broder', 'brathor', 'bruhdda', 'brudha'],
+  sister: ['sister', 'sista', 'sistah', 'sisters', 'cister', 'sistuh', 'seester', 'sesta', 'sistor'],
+  grandfather: ['grandfather', 'granfather', 'grandfodder', 'granfodder', 'grandfathers', 'grandfada', 'granfada', 'grandfadda', 'grandfatha'],
+  grandmother: ['grandmother', 'granmother', 'grandmudder', 'granmudder', 'grandmothers', 'grandmada', 'granmada', 'grandmadda', 'grandmotha'],
+  tall: ['tall', 'tal', 'tahl', 'taul', 'taller', 'taw', 'tawl', 'tol', 'toll', 'tor', 'taal'],
+  cute: ['cute', 'coot', 'kyoot', 'cuter', 'kute', 'acute', 'cuteee', 'kyut', 'kewt', 'cued', 'kyute', 'qte'],
 };
 const RELATIONS = ['father', 'mother', 'brother', 'sister', 'grandfather', 'grandmother'];
 const ADJECTIVES = ['tall', 'cute'];
@@ -245,6 +245,8 @@ export default function App() {
   const recognitionRef = useRef(null);
   const currentTaskRef = useRef(null);
   const isListeningRef = useRef(false);
+  const answeredRef = useRef(false); // 한 번 정답 처리되면 중복 처리 방지
+  const collectedRef = useRef([]); // 중간 결과 포함 모든 인식 후보 누적
 
   useEffect(() => {
     currentTaskRef.current = currentTask;
@@ -526,8 +528,18 @@ export default function App() {
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.lang = 'en-US';
-    recognition.interimResults = false;
+    recognition.interimResults = true; // 중간 결과까지 받아 더 많은 기회를 확보
     recognition.maxAlternatives = 5; // 상위 5개 후보를 모두 받아 채점 정확도를 높임
+
+    const acceptCorrect = () => {
+      answeredRef.current = true;
+      setFeedback('Excellent! 정답입니다! 🎉 (AI 턴으로 넘어갑니다)');
+      speakText('Excellent!');
+      setTimeout(() => {
+        setGameState('playing');
+        setTurn('ai');
+      }, 2500);
+    };
 
     recognition.onstart = () => {
       isListeningRef.current = true;
@@ -535,16 +547,25 @@ export default function App() {
     };
 
     recognition.onresult = (event) => {
-      // 모든 결과의 모든 후보(transcript)를 수집해서 함께 채점
-      const transcripts = [];
+      // 중간/최종 결과의 모든 후보(transcript)를 누적해서 함께 채점
       for (let i = 0; i < event.results.length; i++) {
         const res = event.results[i];
         for (let j = 0; j < res.length; j++) {
-          if (res[j] && res[j].transcript) transcripts.push(res[j].transcript);
+          const t = res[j] && res[j].transcript;
+          if (t && !collectedRef.current.includes(t)) collectedRef.current.push(t);
         }
       }
-      setSpokenText(transcripts[0] || '');
-      checkAnswerRef(transcripts, currentTaskRef.current);
+      const latest = event.results[event.results.length - 1]?.[0]?.transcript;
+      setSpokenText(latest || collectedRef.current[collectedRef.current.length - 1] || '');
+
+      if (!answeredRef.current && currentTaskRef.current && matchSpoken(collectedRef.current, currentTaskRef.current)) {
+        acceptCorrect();
+        try {
+          recognition.stop();
+        } catch (e) {
+          // 무시
+        }
+      }
     };
 
     recognition.onerror = (event) => {
@@ -559,6 +580,18 @@ export default function App() {
     recognition.onend = () => {
       isListeningRef.current = false;
       setIsListening(false);
+      if (answeredRef.current) return;
+      // 누적된 모든 후보로 마지막 채점
+      if (currentTaskRef.current && matchSpoken(collectedRef.current, currentTaskRef.current)) {
+        acceptCorrect();
+        return;
+      }
+      const last = collectedRef.current[collectedRef.current.length - 1] || '';
+      if (last) {
+        setFeedback(`앗, 다시 해볼까요? (인식된 말: ${last})`);
+      } else {
+        setFeedback('잘 안 들렸어요. 마이크 버튼을 한 번 더 눌러볼까요? 🎤');
+      }
     };
 
     recognitionRef.current = recognition;
@@ -566,6 +599,8 @@ export default function App() {
     try {
       setSpokenText('');
       setFeedback('');
+      answeredRef.current = false;
+      collectedRef.current = [];
       isListeningRef.current = true;
       setIsListening(true);
       recognition.start();
@@ -573,24 +608,6 @@ export default function App() {
       console.warn('마이크 시작 오류 방어:', e);
       isListeningRef.current = false;
       setIsListening(false);
-    }
-  };
-
-  const checkAnswerRef = (transcripts, task) => {
-    if (!task) return;
-
-    const candidates = Array.isArray(transcripts) ? transcripts : [transcripts];
-    const isCorrect = matchSpoken(candidates, task);
-
-    if (isCorrect) {
-      setFeedback('Excellent! 정답입니다! 🎉 (AI 턴으로 넘어갑니다)');
-      speakText('Excellent!');
-      setTimeout(() => {
-        setGameState('playing');
-        setTurn('ai');
-      }, 2500);
-    } else {
-      setFeedback(`앗, 다시 해볼까요? (인식된 말: ${candidates[0] || ''})`);
     }
   };
 
