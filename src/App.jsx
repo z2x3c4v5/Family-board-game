@@ -84,11 +84,32 @@ const buildCard = (cell) => {
   }
   return {
     category: '가족 묘사',
-    question: `What is ${p} like?`,
+    question: null, // 묘사 칸은 질문 없이 바로 표현만
     answer: `${P}'s ${cell.adj}.`,
     answerPrefix: `${P}'s`,
     blankWords: [cell.adj],
   };
+};
+
+// 단어 클릭 시 보여줄 뜻 (소문자/축약형 기준)
+const WORD_MEANING = {
+  who: '누구',
+  what: '무엇',
+  is: '~이다',
+  like: '어떠한 (~같은)',
+  he: '그 (남자)',
+  she: '그녀 (여자)',
+  "he's": '그는 ~이다',
+  "she's": '그녀는 ~이다',
+  my: '나의',
+  father: '아빠',
+  mother: '엄마',
+  grandfather: '할아버지',
+  grandmother: '할머니',
+  brother: '형제 (남자 형제)',
+  sister: '자매 (여자 형제)',
+  tall: '키가 큰',
+  cute: '귀여운',
 };
 
 // ===== 음성 인식 정확도 향상 유틸 =====
@@ -267,6 +288,7 @@ export default function App() {
   const [cellPopup, setCellPopup] = useState(null); // 클릭한 칸(cell)
   const [cellWriting, setCellWriting] = useState(false); // 쓰기 활동 화면 여부
   const [cellAnswerShown, setCellAnswerShown] = useState(false); // 정답 공개 여부
+  const [clickedWord, setClickedWord] = useState(null); // 클릭한 단어 { word, meaning }
 
   // --- 마이크 오류 방지 로직 ---
   const recognitionRef = useRef(null);
@@ -682,8 +704,10 @@ export default function App() {
     setCellPopup(cell);
     setCellWriting(false);
     setCellAnswerShown(false);
+    setClickedWord(null);
     const card = buildCard(cell);
-    setTimeout(() => speakText(`${card.question} ... ${card.answer}`), 300);
+    const speech = card.question ? `${card.question} ... ${card.answer}` : card.answer;
+    setTimeout(() => speakText(speech), 300);
   };
 
   const resetGame = () => {
@@ -712,15 +736,28 @@ export default function App() {
     setCellPopup(null);
     setCellWriting(false);
     setCellAnswerShown(false);
+    setClickedWord(null);
   };
 
   const openCellWriting = () => {
     setCellAnswerShown(false);
+    setClickedWord(null);
     setCellWriting(true);
   };
 
-  // 한 단어만 또박또박 들려주기
-  const speakWord = (word) => speakText(word.replace(/[^A-Za-z']/g, ''), 0.75);
+  const backToReading = () => {
+    setCellWriting(false);
+    setCellAnswerShown(false);
+    setClickedWord(null);
+  };
+
+  // 단어 클릭: 그 단어만 또박또박 읽어주고 뜻도 보여주기
+  const handleWordClick = (word) => {
+    const clean = word.toLowerCase().replace(/[^a-z']/g, '');
+    if (clean) speakText(clean, 0.75);
+    const meaning = WORD_MEANING[clean] || WORD_MEANING[clean.replace(/'s$/, '')] || '뜻 정보 없음';
+    setClickedWord({ word: word.replace(/[.?!,]/g, ''), meaning });
+  };
 
   const renderDots = (num) => {
     const dot = 'w-6 h-6 bg-slate-700 rounded-full shadow-inner';
@@ -1224,12 +1261,31 @@ export default function App() {
           text.split(' ').map((word, i) => (
             <button
               key={i}
-              onClick={() => speakWord(word)}
+              onClick={() => handleWordClick(word)}
               className={`px-1.5 py-0.5 rounded-lg font-black text-slate-800 transition-colors ${hoverClass}`}
             >
               {word}
             </button>
           ));
+
+        const meaningLine = clickedWord ? (
+          <div className="flex items-center justify-center gap-2 mb-4 bg-indigo-50 border-2 border-indigo-200 rounded-2xl px-4 py-2">
+            <span className="text-xl font-black text-indigo-700">{clickedWord.word}</span>
+            <span className="text-slate-400 font-black">→</span>
+            <span className="text-xl font-black text-rose-600">{clickedWord.meaning}</span>
+          </div>
+        ) : (
+          <p className="text-sm font-bold text-slate-400 mb-4">👆 단어를 누르면 발음과 뜻을 알 수 있어요</p>
+        );
+
+        const questionBox = card.question ? (
+          <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-4 mb-3 text-left">
+            <p className="text-xs font-black text-blue-500 tracking-wide mb-1">QUESTION · 질문</p>
+            <div className="text-2xl md:text-3xl tracking-wide flex flex-wrap">
+              {words(card.question, 'hover:bg-blue-200')}
+            </div>
+          </div>
+        ) : null;
 
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[75] p-4 backdrop-blur-sm" onClick={closeCellPopup}>
@@ -1253,29 +1309,23 @@ export default function App() {
                 </span>
               </div>
 
-              {/* QUESTION 박스 (공통) */}
-              <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-4 mb-3 text-left">
-                <p className="text-xs font-black text-blue-500 tracking-wide mb-1">QUESTION · 질문</p>
-                <div className="text-2xl md:text-3xl tracking-wide flex flex-wrap">
-                  {words(card.question, 'hover:bg-blue-200')}
-                </div>
-              </div>
-
               {!cellWriting ? (
                 <>
-                  {/* ANSWER 박스 */}
+                  {questionBox}
+
+                  {/* 대답/표현 박스 */}
                   <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-4 mb-3 text-left">
-                    <p className="text-xs font-black text-amber-600 tracking-wide mb-1">ANSWER · 대답</p>
+                    <p className="text-xs font-black text-amber-600 tracking-wide mb-1">{card.question ? 'ANSWER · 대답' : '표현 · 문장'}</p>
                     <div className="text-2xl md:text-3xl tracking-wide flex flex-wrap">
                       {words(card.answer, 'hover:bg-amber-200')}
                     </div>
                   </div>
 
-                  <p className="text-sm font-bold text-slate-400 mb-4">👆 단어를 누르면 그 단어만 들려줘요</p>
+                  {meaningLine}
 
                   <div className="flex gap-3">
                     <button
-                      onClick={() => speakText(`${card.question} ... ${card.answer}`)}
+                      onClick={() => speakText(card.question ? `${card.question} ... ${card.answer}` : card.answer)}
                       className="flex-1 py-3 bg-green-500 hover:bg-green-400 text-white rounded-2xl font-black text-lg shadow-[0_4px_0_0_rgba(22,163,74,1)] active:shadow-none active:translate-y-1 transition-all"
                     >
                       🔊 다시 듣기
@@ -1290,6 +1340,9 @@ export default function App() {
                 </>
               ) : (
                 <>
+                  {questionBox}
+                  {card.question && meaningLine}
+
                   <p className="text-sm font-black text-purple-600 mb-2">✏️ 빈칸에 알맞은 단어를 써보세요</p>
 
                   {/* 정답/빈칸 박스 */}
@@ -1321,17 +1374,12 @@ export default function App() {
                       🔄 다시 쓰기
                     </button>
                     <button
-                      onClick={() => { setCellWriting(false); setCellAnswerShown(false); }}
+                      onClick={backToReading}
                       className="px-4 py-3 bg-white border-2 border-slate-300 text-slate-500 rounded-2xl font-bold hover:bg-slate-50 transition-all whitespace-nowrap"
                     >
                       ← 읽기로
                     </button>
                   </div>
-                  {cellAnswerShown && (
-                    <button onClick={() => speakText(card.answer)} className="mt-3 text-sm font-bold text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 px-4 py-2 rounded-full transition-colors">
-                      🔊 정답 문장 듣기
-                    </button>
-                  )}
                 </>
               )}
             </div>
