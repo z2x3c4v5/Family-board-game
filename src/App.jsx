@@ -1,36 +1,38 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 // --- 데이터 정의 ---
-// 가족 구성원: gender(he/she), relation(관계), emoji, adj(묘사 형용사)
+// 가족 구성원 칸: gender(he/she), relation(관계), emoji, adj(묘사 형용사)
+// task: 'relation' -> "Who is he/she?" 묻고 답하기
+//       'description' -> 한글 힌트를 보고 영어로 묘사하기 (He's tall 등)
 const BOARD_DATA = [
   { id: 0, type: 'start', label: 'START' },
-  { id: 1, type: 'normal', gender: 'she', relation: 'mother', emoji: '👩', adj: 'tall' },
-  { id: 2, type: 'normal', gender: 'he', relation: 'father', emoji: '👨', adj: 'cute' },
-  { id: 3, type: 'normal', gender: 'she', relation: 'sister', emoji: '👧', adj: 'cute' },
-  { id: 4, type: 'normal', gender: 'he', relation: 'brother', emoji: '👦', adj: 'tall' },
-  { id: 5, type: 'normal', gender: 'she', relation: 'grandmother', emoji: '👵', adj: 'cute' },
-  { id: 6, type: 'normal', gender: 'he', relation: 'grandfather', emoji: '👴', adj: 'tall' },
-  { id: 7, type: 'normal', gender: 'she', relation: 'mother', emoji: '👩', adj: 'cute' },
-  { id: 8, type: 'normal', gender: 'he', relation: 'father', emoji: '👨', adj: 'tall' },
-  { id: 9, type: 'normal', gender: 'she', relation: 'sister', emoji: '👧', adj: 'tall' },
-  { id: 10, type: 'normal', gender: 'he', relation: 'brother', emoji: '👦', adj: 'cute' },
+  { id: 1, type: 'normal', task: 'relation', gender: 'she', relation: 'mother', emoji: '👩', adj: 'tall' },
+  { id: 2, type: 'normal', task: 'description', gender: 'he', relation: 'father', emoji: '👨', adj: 'cute' },
+  { id: 3, type: 'normal', task: 'relation', gender: 'she', relation: 'sister', emoji: '👧', adj: 'cute' },
+  { id: 4, type: 'normal', task: 'description', gender: 'he', relation: 'brother', emoji: '👦', adj: 'tall' },
+  { id: 5, type: 'normal', task: 'relation', gender: 'she', relation: 'grandmother', emoji: '👵', adj: 'cute' },
+  { id: 6, type: 'normal', task: 'description', gender: 'he', relation: 'grandfather', emoji: '👴', adj: 'tall' },
+  { id: 7, type: 'normal', task: 'description', gender: 'she', relation: 'mother', emoji: '👩', adj: 'cute' },
+  { id: 8, type: 'normal', task: 'relation', gender: 'he', relation: 'father', emoji: '👨', adj: 'tall' },
+  { id: 9, type: 'normal', task: 'description', gender: 'she', relation: 'sister', emoji: '👧', adj: 'tall' },
+  { id: 10, type: 'normal', task: 'relation', gender: 'he', relation: 'brother', emoji: '👦', adj: 'cute' },
   { id: 11, type: 'action', action: 'forward2', label: '앞으로\n2칸 🚀', color: 'bg-green-200 border-green-500' },
-  { id: 12, type: 'normal', gender: 'she', relation: 'grandmother', emoji: '👵', adj: 'tall' },
-  { id: 13, type: 'normal', gender: 'he', relation: 'grandfather', emoji: '👴', adj: 'cute' },
+  { id: 12, type: 'normal', task: 'description', gender: 'she', relation: 'grandmother', emoji: '👵', adj: 'tall' },
+  { id: 13, type: 'normal', task: 'relation', gender: 'he', relation: 'grandfather', emoji: '👴', adj: 'cute' },
   { id: 14, type: 'action', action: 'rest', label: '한 번\n쉬기 💤', color: 'bg-blue-200 border-blue-500' },
-  { id: 15, type: 'normal', gender: 'she', relation: 'mother', emoji: '👩', adj: 'tall' },
-  { id: 16, type: 'normal', gender: 'he', relation: 'father', emoji: '👨', adj: 'cute' },
-  { id: 17, type: 'normal', gender: 'she', relation: 'sister', emoji: '👧', adj: 'cute' },
+  { id: 15, type: 'normal', task: 'relation', gender: 'she', relation: 'mother', emoji: '👩', adj: 'tall' },
+  { id: 16, type: 'normal', task: 'description', gender: 'he', relation: 'father', emoji: '👨', adj: 'cute' },
+  { id: 17, type: 'normal', task: 'description', gender: 'she', relation: 'sister', emoji: '👧', adj: 'cute' },
   { id: 18, type: 'action', action: 'back2', label: '뒤로\n2칸 🐌', color: 'bg-red-200 border-red-500' },
-  { id: 19, type: 'normal', gender: 'he', relation: 'brother', emoji: '👦', adj: 'tall' },
-  { id: 20, type: 'normal', gender: 'she', relation: 'grandmother', emoji: '👵', adj: 'tall' },
-  { id: 21, type: 'normal', gender: 'he', relation: 'grandfather', emoji: '👴', adj: 'cute' },
-  { id: 22, type: 'normal', gender: 'she', relation: 'mother', emoji: '👩', adj: 'cute' },
-  { id: 23, type: 'normal', gender: 'he', relation: 'father', emoji: '👨', adj: 'tall' },
-  { id: 24, type: 'normal', gender: 'she', relation: 'sister', emoji: '👧', adj: 'tall' },
-  { id: 25, type: 'normal', gender: 'he', relation: 'brother', emoji: '👦', adj: 'cute' },
-  { id: 26, type: 'normal', gender: 'she', relation: 'grandmother', emoji: '👵', adj: 'cute' },
-  { id: 27, type: 'normal', gender: 'he', relation: 'grandfather', emoji: '👴', adj: 'tall' },
+  { id: 19, type: 'normal', task: 'relation', gender: 'he', relation: 'brother', emoji: '👦', adj: 'tall' },
+  { id: 20, type: 'normal', task: 'relation', gender: 'she', relation: 'grandmother', emoji: '👵', adj: 'tall' },
+  { id: 21, type: 'normal', task: 'description', gender: 'he', relation: 'grandfather', emoji: '👴', adj: 'cute' },
+  { id: 22, type: 'normal', task: 'description', gender: 'she', relation: 'mother', emoji: '👩', adj: 'cute' },
+  { id: 23, type: 'normal', task: 'relation', gender: 'he', relation: 'father', emoji: '👨', adj: 'tall' },
+  { id: 24, type: 'normal', task: 'description', gender: 'she', relation: 'sister', emoji: '👧', adj: 'tall' },
+  { id: 25, type: 'normal', task: 'relation', gender: 'he', relation: 'brother', emoji: '👦', adj: 'cute' },
+  { id: 26, type: 'normal', task: 'description', gender: 'she', relation: 'grandmother', emoji: '👵', adj: 'cute' },
+  { id: 27, type: 'normal', task: 'relation', gender: 'he', relation: 'grandfather', emoji: '👴', adj: 'tall' },
   { id: 28, type: 'finish', label: 'FINISH' }
 ];
 
@@ -44,22 +46,25 @@ const ADJ_KO = { tall: '키가 커요', cute: '귀여워요' };
 
 const RPS_EMOJI = { rock: '✊', paper: '🖐️', scissors: '✌️' };
 
-// 가족 구성원 칸에서 질문/대답 문장을 생성
-const buildSentences = (cell, topic) => {
+// 칸 종류에 따라 질문/대답 문장을 생성
+const buildTask = (cell) => {
   const P = cell.gender === 'he' ? 'He' : 'She';
   const p = cell.gender; // 'he' | 'she'
-  if (topic === 'relation') {
+  if (cell.task === 'relation') {
     return {
+      taskType: 'relation',
       question: `Who is ${p}?`,
       answer: `${P}'s my ${cell.relation}.`,
-      hint: cell.relation,
+      hintEn: cell.relation,
       hintKo: RELATION_KO[cell.relation]
     };
   }
+  // description: 한글 힌트를 보고 영어로 묘사
   return {
-    question: `What is ${p} like?`,
+    taskType: 'description',
+    question: null,
     answer: `${P}'s ${cell.adj}.`,
-    hint: cell.adj,
+    hintEn: cell.adj,
     hintKo: ADJ_KO[cell.adj]
   };
 };
@@ -68,7 +73,6 @@ export default function App() {
   const [gameState, setGameState] = useState('lobby');
   const [turn, setTurn] = useState('player');
   const [gameMode, setGameMode] = useState('answerOnly'); // answerOnly | qna (난이도)
-  const [topic, setTopic] = useState('relation'); // relation | description (주제)
 
   const [rpsState, setRpsState] = useState('idle');
   const [playerChoice, setPlayerChoice] = useState(null);
@@ -350,15 +354,17 @@ export default function App() {
     setSpokenText('');
     setFeedback('');
 
-    const { question, answer, hint, hintKo } = buildSentences(cell, topic);
+    const built = buildTask(cell);
+    setCurrentTask({ cell, ...built, mode: gameMode });
 
-    setCurrentTask({ cell, question, answer, hint, hintKo, topic, mode: gameMode });
-
-    if (gameMode === 'qna') {
-      setTimeout(() => speakText('그림을 보고 질문과 대답을 만들어보세요!'), 500);
-    } else {
-      setTimeout(() => speakText(question), 500);
+    if (built.taskType === 'relation') {
+      if (gameMode === 'qna') {
+        setTimeout(() => speakText('그림을 보고 질문과 대답을 만들어보세요!'), 500);
+      } else {
+        setTimeout(() => speakText(built.question), 500);
+      }
     }
+    // description 칸은 한글 힌트만 보여주고 음성 안내는 하지 않습니다.
   };
 
   const startListening = () => {
@@ -431,28 +437,25 @@ export default function App() {
     const p = task.cell.gender; // he | she
 
     let answerVariants;
-    let questionVariants;
-    let keyword = null;
+    let questionVariants = [];
 
-    if (task.topic === 'relation') {
+    if (task.taskType === 'relation') {
       const r = task.cell.relation;
       // "He's my father" / "He is my father" / "He's father" 등 허용
       answerVariants = [`${p} is my ${r}`, `${p}s my ${r}`, `${p} my ${r}`, `${p} is ${r}`, `${p}s ${r}`];
       questionVariants = [`who is ${p}`, `whos ${p}`, `who ${p}`];
     } else {
+      // 묘사: He's/She's 구분을 연습하도록 대명사(he/she)를 반드시 포함해야 정답 처리
       const a = task.cell.adj;
       answerVariants = [`${p} is ${a}`, `${p}s ${a}`];
-      questionVariants = [`what is ${p} like`, `whats ${p} like`, `what ${p} like`, `how is ${p}`, `hows ${p}`];
-      keyword = a; // tall/cute 는 겹치지 않으므로 단어만 말해도 정답 처리
     }
 
     const normArr = (arr) => arr.map(normalize);
-    const answerOK =
-      normArr(answerVariants).some((v) => spoken.includes(v)) ||
-      (keyword && spoken.includes(normalize(keyword)));
+    const answerOK = normArr(answerVariants).some((v) => spoken.includes(v));
 
     let isCorrect;
-    if (task.mode === 'qna') {
+    // 질문&대답 모드는 관계 칸에서만 질문까지 요구합니다. 묘사 칸은 대답만 확인.
+    if (task.taskType === 'relation' && task.mode === 'qna') {
       const questionOK = normArr(questionVariants).some((v) => spoken.includes(v));
       isCorrect = questionOK && answerOK;
     } else {
@@ -475,26 +478,32 @@ export default function App() {
     setGameState('aiSpeaking');
     setAiSpeechText('음... 🤔');
 
-    const { question, answer } = buildSentences(cell, topic);
+    const built = buildTask(cell);
+    setCurrentTask({ cell, ...built });
 
-    setCurrentTask({ cell, question, expectedAnswer: answer });
+    const finishTurn = () => {
+      setAiSpeechText('내 차례 끝!');
+      setTimeout(() => {
+        setGameState('playing');
+        setTurn('player');
+      }, 1000);
+    };
 
     setTimeout(() => {
-      setAiSpeechText(`"${question}"`);
-      speakText(question);
-
-      setTimeout(() => {
-        setAiSpeechText(`"${answer}"`);
-        speakText(answer);
-
+      if (built.taskType === 'relation') {
+        setAiSpeechText(`"${built.question}"`);
+        speakText(built.question);
         setTimeout(() => {
-          setAiSpeechText('내 차례 끝!');
-          setTimeout(() => {
-            setGameState('playing');
-            setTurn('player');
-          }, 1000);
+          setAiSpeechText(`"${built.answer}"`);
+          speakText(built.answer);
+          setTimeout(finishTurn, 2500);
         }, 2500);
-      }, 2500);
+      } else {
+        // 묘사 칸: 한글 힌트를 보고 영어 대답을 시범으로 말합니다.
+        setAiSpeechText(`"${built.answer}"`);
+        speakText(built.answer);
+        setTimeout(finishTurn, 2500);
+      }
     }, 1000);
   };
 
@@ -506,8 +515,12 @@ export default function App() {
   const handleCellClick = (cell) => {
     if (cell.type !== 'normal' || (gameState !== 'playing' && gameState !== 'lobby') || isMoving || showDicePopup || actionPopup || catchEvent) return;
 
-    const { question, answer } = buildSentences(cell, topic);
-    speakText(`${question} ... ${answer}`);
+    const built = buildTask(cell);
+    if (built.taskType === 'relation') {
+      speakText(`${built.question} ... ${built.answer}`);
+    } else {
+      speakText(built.answer);
+    }
   };
 
   const resetGame = () => {
@@ -528,11 +541,6 @@ export default function App() {
 
   const handleModeChange = (mode) => {
     setGameMode(mode);
-    resetGame();
-  };
-
-  const handleTopicChange = (t) => {
-    setTopic(t);
     resetGame();
   };
 
@@ -603,42 +611,24 @@ export default function App() {
           👨‍👩‍👧‍👦 Family Board Game
         </h1>
 
-        <div className="flex flex-col gap-2 items-stretch sm:items-center">
-          <div className="flex flex-col sm:flex-row gap-2 items-center">
-            {/* 주제 토글: 관계 / 묘사 */}
-            <div className="flex bg-rose-100 p-1 rounded-xl shadow-inner">
-              <button
-                onClick={() => handleTopicChange('relation')}
-                className={`px-4 py-2 rounded-lg font-bold transition-all text-sm md:text-base ${topic === 'relation' ? 'bg-white shadow-sm text-rose-700 border border-rose-300' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                가족 관계
-              </button>
-              <button
-                onClick={() => handleTopicChange('description')}
-                className={`px-4 py-2 rounded-lg font-bold transition-all text-sm md:text-base ${topic === 'description' ? 'bg-white shadow-sm text-rose-700 border border-rose-300' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                가족 묘사
-              </button>
-            </div>
-
-            {/* 난이도 토글: 대답만 / 질문&대답 */}
-            <div className="flex bg-gray-200 p-1 rounded-xl shadow-inner">
-              <button
-                onClick={() => handleModeChange('answerOnly')}
-                className={`px-4 py-2 rounded-lg font-bold transition-all text-sm md:text-base ${gameMode === 'answerOnly' ? 'bg-white shadow-sm text-emerald-800 border border-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                대답만 하기
-              </button>
-              <button
-                onClick={() => handleModeChange('qna')}
-                className={`px-4 py-2 rounded-lg font-bold transition-all text-sm md:text-base ${gameMode === 'qna' ? 'bg-white shadow-sm text-emerald-800 border border-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                질문&대답 같이
-              </button>
-            </div>
+        <div className="flex flex-col sm:flex-row gap-3 items-center">
+          {/* 난이도 토글: 대답만 / 질문&대답 (관계 칸에만 적용) */}
+          <div className="flex bg-gray-200 p-1 rounded-xl shadow-inner">
+            <button
+              onClick={() => handleModeChange('answerOnly')}
+              className={`px-4 py-2 rounded-lg font-bold transition-all text-sm md:text-base ${gameMode === 'answerOnly' ? 'bg-white shadow-sm text-emerald-800 border border-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              대답만 하기
+            </button>
+            <button
+              onClick={() => handleModeChange('qna')}
+              className={`px-4 py-2 rounded-lg font-bold transition-all text-sm md:text-base ${gameMode === 'qna' ? 'bg-white shadow-sm text-emerald-800 border border-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              질문&대답 같이
+            </button>
           </div>
 
-          <button onClick={resetGame} className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-amber-950 rounded-xl font-bold transition-all shadow-[0_4px_0_0_rgba(180,83,9,1)] active:shadow-[0_0px_0_0_rgba(180,83,9,1)] active:translate-y-1 whitespace-nowrap self-center">
+          <button onClick={resetGame} className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-amber-950 rounded-xl font-bold transition-all shadow-[0_4px_0_0_rgba(180,83,9,1)] active:shadow-[0_0px_0_0_rgba(180,83,9,1)] active:translate-y-1 whitespace-nowrap">
             처음부터 다시 하기
           </button>
         </div>
@@ -647,9 +637,7 @@ export default function App() {
       {gameState === 'lobby' && (
         <div className="w-full max-w-5xl bg-white/95 p-4 rounded-2xl shadow-md mb-4 text-center border-4 border-rose-400 z-10 animate-pulse">
           <h2 className="text-xl md:text-2xl font-black text-rose-700">
-            {topic === 'relation'
-              ? '💡 게임 시작 전, 가족 그림을 클릭하며 "Who is he/she?" 묻고 답하는 연습을 해봅시다.'
-              : '💡 게임 시작 전, 가족 그림을 클릭하며 "He\'s tall / She\'s cute" 묘사하는 연습을 해봅시다.'}
+            💡 게임 시작 전, 가족 그림을 클릭하며 묻고 답하기 ("Who is he?")와 묘사하기 ("He's tall.")를 연습해봅시다.
           </h2>
         </div>
       )}
@@ -746,7 +734,11 @@ export default function App() {
                 <>
                   <div className="absolute top-2 right-2 text-sm bg-gray-200/50 rounded-full w-6 h-6 flex items-center justify-center opacity-40 hover:opacity-100 hover:bg-rose-100 transition-all">🔊</div>
                   <div className="text-4xl md:text-6xl mb-1 drop-shadow-md transform transition-transform group-hover:scale-110">{cell.emoji}</div>
-                  <div className="text-[10px] md:text-sm font-black text-[#5c3a21] bg-[#f3e3d0] border-2 border-[#d4bca3] px-2 py-0.5 rounded-full shadow-inner mt-1 capitalize leading-none">{cell.relation}</div>
+                  {cell.task === 'relation' ? (
+                    <div className="text-[10px] md:text-sm font-black text-[#5c3a21] bg-[#f3e3d0] border-2 border-[#d4bca3] px-2 py-0.5 rounded-full shadow-inner mt-1 capitalize leading-none">{cell.relation}</div>
+                  ) : (
+                    <div className="text-[10px] md:text-sm font-black text-rose-700 bg-rose-100 border-2 border-rose-300 px-2 py-0.5 rounded-full shadow-inner mt-1 leading-none">{ADJ_KO[cell.adj]}</div>
+                  )}
                 </>
               )}
 
@@ -924,11 +916,22 @@ export default function App() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-[2rem] p-6 md:p-10 max-w-lg w-full text-center shadow-2xl border-8 border-blue-400">
 
-            {currentTask.mode === 'qna' ? (
+            {currentTask.taskType === 'description' ? (
+              <div className="mb-6 bg-rose-50 p-6 rounded-3xl border-2 border-rose-100 relative">
+                <div className="flex justify-center items-center gap-4 mb-4">
+                  <span className="text-7xl drop-shadow-md">{currentTask.cell.emoji}</span>
+                  <span className="text-2xl md:text-3xl font-black text-rose-600 bg-white px-4 py-2 rounded-xl shadow-sm">{currentTask.hintKo}</span>
+                </div>
+                <p className="text-rose-500 font-bold mb-2 tracking-wide">📝 한글 힌트를 보고</p>
+                <h3 className="text-2xl font-black text-slate-800 leading-snug">
+                  이 가족을 <span className="text-rose-600 border-b-4 border-rose-300">영어로 묘사</span>해보세요!
+                </h3>
+              </div>
+            ) : currentTask.mode === 'qna' ? (
               <div className="mb-6 bg-blue-50 p-6 rounded-3xl border-2 border-blue-100 relative">
                 <div className="flex justify-center items-center gap-4 mb-4">
                   <span className="text-7xl drop-shadow-md">{currentTask.cell.emoji}</span>
-                  <span className="text-2xl md:text-3xl font-black text-blue-600 bg-white px-3 py-2 rounded-xl shadow-sm capitalize">{currentTask.hint}</span>
+                  <span className="text-2xl md:text-3xl font-black text-blue-600 bg-white px-3 py-2 rounded-xl shadow-sm capitalize">{currentTask.hintEn}</span>
                 </div>
                 <h3 className="text-2xl font-black text-slate-800 leading-snug">
                   그림에 맞는 <span className="text-blue-600 border-b-4 border-blue-300">질문</span>과 <span className="text-blue-600 border-b-4 border-blue-300">대답</span>을<br />모두 말해보세요!
@@ -938,7 +941,7 @@ export default function App() {
               <div className="mb-6 bg-blue-50 p-6 rounded-3xl border-2 border-blue-100 relative">
                 <div className="flex justify-center items-center gap-4 mb-4">
                   <span className="text-7xl drop-shadow-md">{currentTask.cell.emoji}</span>
-                  <span className="text-2xl md:text-3xl font-black text-blue-600 bg-white px-3 py-2 rounded-xl shadow-sm capitalize">{currentTask.hint}</span>
+                  <span className="text-2xl md:text-3xl font-black text-blue-600 bg-white px-3 py-2 rounded-xl shadow-sm capitalize">{currentTask.hintEn}</span>
                 </div>
                 <p className="text-blue-500 font-bold mb-2 uppercase tracking-wide">🤖 AI 친구의 질문:</p>
                 <h3 className="text-3xl font-black text-slate-800">"{currentTask.question}"</h3>
@@ -950,7 +953,11 @@ export default function App() {
 
             <div className="mb-8">
               <p className="text-lg font-bold text-slate-600 mb-4">
-                {currentTask.mode === 'qna' ? '마이크를 누르고 질문과 대답을 모두 말해보세요!' : '마이크를 누르고 영어로 대답하세요!'}
+                {currentTask.taskType === 'description'
+                  ? '마이크를 누르고 영어로 말해보세요!'
+                  : currentTask.mode === 'qna'
+                    ? '마이크를 누르고 질문과 대답을 모두 말해보세요!'
+                    : '마이크를 누르고 영어로 대답하세요!'}
               </p>
               <button
                 onClick={startListening}
@@ -1001,7 +1008,9 @@ export default function App() {
             <div className="mb-6 bg-slate-50 p-6 rounded-3xl border-2 border-slate-200 relative">
               <div className="flex justify-center items-center gap-4 mb-6 opacity-60">
                 <span className="text-5xl">{currentTask.cell.emoji}</span>
-                <span className="text-2xl font-black text-slate-500 capitalize">{currentTask.cell.relation}</span>
+                <span className="text-2xl font-black text-slate-500 capitalize">
+                  {currentTask.taskType === 'relation' ? currentTask.cell.relation : currentTask.hintKo}
+                </span>
               </div>
 
               <div className="bg-white p-6 rounded-2xl border-2 border-red-200 shadow-md relative">
