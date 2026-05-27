@@ -69,6 +69,145 @@ const buildTask = (cell) => {
   };
 };
 
+// ===== 음성 인식 정확도 향상 유틸 =====
+// 흔한 오인식/발음 변형을 흡수하기 위한 별칭표 (같은 단어의 변형만 등록)
+const ALIASES = {
+  he: ['he', 'hes', 'heis', 'hed'],
+  she: ['she', 'shes', 'sheis'],
+  who: ['who', 'hoo', 'hu', 'whos', 'whois', 'hooz'],
+  father: ['father', 'farther', 'fodder', 'fadder', 'faather', 'fathers', 'fatha'],
+  mother: ['mother', 'mudder', 'mudda', 'mothers', 'motha', 'mader'],
+  brother: ['brother', 'brudder', 'brudda', 'brothers', 'brotha', 'budder'],
+  sister: ['sister', 'sista', 'sistah', 'sisters', 'cister'],
+  grandfather: ['grandfather', 'granfather', 'grandfodder', 'granfodder', 'grandfathers'],
+  grandmother: ['grandmother', 'granmother', 'grandmudder', 'granmudder', 'grandmothers'],
+  tall: ['tall', 'tal', 'tahl', 'taul', 'taller', 'taw', 'tawl'],
+  cute: ['cute', 'coot', 'kyoot', 'cuter', 'kute', 'acute', 'cuteee'],
+};
+const RELATIONS = ['father', 'mother', 'brother', 'sister', 'grandfather', 'grandmother'];
+const ADJECTIVES = ['tall', 'cute'];
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  let curr = new Array(n + 1).fill(0);
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+function tokenize(str) {
+  return str
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+// 단어 하나가 target(또는 그 별칭/근사)인지 판단
+function wordSim(token, target) {
+  if (token === target) return true;
+  const aliases = ALIASES[target];
+  if (aliases && aliases.includes(token)) return true;
+  const maxd = target.length <= 4 ? 1 : 2;
+  return levenshtein(token, target) <= maxd;
+}
+
+// 닫힌 후보 집합 중 token이 가장 가까운 단어와 그 거리
+function classify(token, set) {
+  let best = null;
+  let bestd = Infinity;
+  for (const c of set) {
+    const aliases = ALIASES[c];
+    const d = token === c || (aliases && aliases.includes(token)) ? 0 : levenshtein(token, c);
+    if (d < bestd) {
+      bestd = d;
+      best = c;
+    }
+  }
+  return { best, bestd };
+}
+
+// 띄어쓰기가 흩어진 경우까지 대비해 인접 토큰 결합본도 후보로 만든다
+function buildCandidates(tokens) {
+  const cands = [...tokens];
+  for (let i = 0; i < tokens.length - 1; i++) cands.push(tokens[i] + tokens[i + 1]);
+  if (tokens.length) cands.push(tokens.join(''));
+  return cands;
+}
+
+// 닫힌 집합에서 target으로 분류되는 후보가 있는지 (혼동 단어 방지)
+function matchesClosed(tokens, target, set) {
+  const thr = target.length >= 10 ? 3 : 2;
+  for (const cand of buildCandidates(tokens)) {
+    const { best, bestd } = classify(cand, set);
+    if (best === target && bestd <= thr) return true;
+  }
+  // 붙여서 인식된 경우: 포함된 단어 중 가장 긴(=가장 구체적인) 단어가 정답이면 인정
+  // (grandfather 안의 father 처럼 짧은 단어로 오인되는 것을 방지)
+  const concat = tokens.join('');
+  let bestLen = 0;
+  let winners = [];
+  for (const c of set) {
+    for (const a of ALIASES[c] || [c]) {
+      if (concat.includes(a)) {
+        if (a.length > bestLen) {
+          bestLen = a.length;
+          winners = [c];
+        } else if (a.length === bestLen && !winners.includes(c)) {
+          winners.push(c);
+        }
+      }
+    }
+  }
+  return winners.includes(target);
+}
+
+// he/she 대명사가 들어있는지 (성별 구분 유지)
+function hasPronoun(tokens, gender) {
+  for (const t of tokens) {
+    const { best, bestd } = classify(t, ['he', 'she']);
+    if (best === gender && bestd <= 1) return true;
+  }
+  // 띄어쓰기 없이 "hesmyfather" 처럼 붙어 나온 경우 대비
+  const concat = tokens.join('');
+  if (gender === 'she') return /^she/.test(concat);
+  return /^he/.test(concat) && !/^she/.test(concat);
+}
+
+// 여러 후보 transcript 중 하나라도 정답이면 true
+function matchSpoken(transcripts, task) {
+  const gender = task.cell.gender;
+  for (const tr of transcripts) {
+    const tokens = tokenize(tr);
+    if (!tokens.length) continue;
+    if (!hasPronoun(tokens, gender)) continue;
+
+    if (task.taskType === 'relation') {
+      if (!matchesClosed(tokens, task.cell.relation, RELATIONS)) continue;
+      if (task.mode === 'qna') {
+        const concat = tokens.join('');
+        const qOK = tokens.some((t) => wordSim(t, 'who')) || concat.includes('who') || concat.includes('hoo');
+        if (!qOK) continue;
+      }
+      return true;
+    } else if (matchesClosed(tokens, task.cell.adj, ADJECTIVES)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export default function App() {
   const [gameState, setGameState] = useState('lobby');
   const [turn, setTurn] = useState('player');
@@ -388,6 +527,7 @@ export default function App() {
     recognition.continuous = false;
     recognition.lang = 'en-US';
     recognition.interimResults = false;
+    recognition.maxAlternatives = 5; // 상위 5개 후보를 모두 받아 채점 정확도를 높임
 
     recognition.onstart = () => {
       isListeningRef.current = true;
@@ -395,9 +535,16 @@ export default function App() {
     };
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setSpokenText(transcript);
-      checkAnswerRef(transcript, currentTaskRef.current);
+      // 모든 결과의 모든 후보(transcript)를 수집해서 함께 채점
+      const transcripts = [];
+      for (let i = 0; i < event.results.length; i++) {
+        const res = event.results[i];
+        for (let j = 0; j < res.length; j++) {
+          if (res[j] && res[j].transcript) transcripts.push(res[j].transcript);
+        }
+      }
+      setSpokenText(transcripts[0] || '');
+      checkAnswerRef(transcripts, currentTaskRef.current);
     };
 
     recognition.onerror = (event) => {
@@ -429,38 +576,11 @@ export default function App() {
     }
   };
 
-  const checkAnswerRef = (transcript, task) => {
+  const checkAnswerRef = (transcripts, task) => {
     if (!task) return;
 
-    const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const spoken = normalize(transcript);
-    const p = task.cell.gender; // he | she
-
-    let answerVariants;
-    let questionVariants = [];
-
-    if (task.taskType === 'relation') {
-      const r = task.cell.relation;
-      // "He's my father" / "He is my father" / "He's father" 등 허용
-      answerVariants = [`${p} is my ${r}`, `${p}s my ${r}`, `${p} my ${r}`, `${p} is ${r}`, `${p}s ${r}`];
-      questionVariants = [`who is ${p}`, `whos ${p}`, `who ${p}`];
-    } else {
-      // 묘사: He's/She's 구분을 연습하도록 대명사(he/she)를 반드시 포함해야 정답 처리
-      const a = task.cell.adj;
-      answerVariants = [`${p} is ${a}`, `${p}s ${a}`];
-    }
-
-    const normArr = (arr) => arr.map(normalize);
-    const answerOK = normArr(answerVariants).some((v) => spoken.includes(v));
-
-    let isCorrect;
-    // 질문&대답 모드는 관계 칸에서만 질문까지 요구합니다. 묘사 칸은 대답만 확인.
-    if (task.taskType === 'relation' && task.mode === 'qna') {
-      const questionOK = normArr(questionVariants).some((v) => spoken.includes(v));
-      isCorrect = questionOK && answerOK;
-    } else {
-      isCorrect = answerOK;
-    }
+    const candidates = Array.isArray(transcripts) ? transcripts : [transcripts];
+    const isCorrect = matchSpoken(candidates, task);
 
     if (isCorrect) {
       setFeedback('Excellent! 정답입니다! 🎉 (AI 턴으로 넘어갑니다)');
@@ -470,7 +590,7 @@ export default function App() {
         setTurn('ai');
       }, 2500);
     } else {
-      setFeedback(`앗, 다시 해볼까요? (인식된 말: ${transcript})`);
+      setFeedback(`앗, 다시 해볼까요? (인식된 말: ${candidates[0] || ''})`);
     }
   };
 
