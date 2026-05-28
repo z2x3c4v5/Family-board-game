@@ -838,28 +838,39 @@ export default function App() {
         .face-top    { transform: rotateX(90deg) translateZ(64px); }
         .face-bottom { transform: rotateX(-90deg) translateZ(64px); }
 
-        /* 영어 공책(4선) 위에 문장 표시 */
+        /* 영어 공책(4선) 위에 문장 표시 - 줄 위치를 글자 크기(em)에 맞춤 */
         .eng-line {
           position: relative;
           display: flex;
           flex-wrap: wrap;
-          align-items: flex-end;
-          gap: 0 0.4rem;
-          padding: 1.7rem 0.6rem 0.45rem;
-          border-bottom: 3px solid #f87171;   /* 기준선(빨강) */
-          line-height: 1.05;
+          align-items: baseline;
+          gap: 0 0.3rem;
+          font-size: clamp(2rem, 7vw, 2.6rem);
+          line-height: 1;
+          padding: 0.25em 0.5rem 0.2em;        /* 위: ascender 공간, 아래: descender 공간 */
+          background-repeat: no-repeat;
+          background-image: linear-gradient(#f87171, #f87171);  /* 기준선(빨강) */
+          background-size: 100% 3px;
+          background-position: left bottom 0.4em; /* 글자 baseline 위치(아래여백+descent) */
         }
-        .eng-line::before {                    /* 맨 윗줄 */
+        .eng-line::before {                    /* 맨 윗줄 (대문자·ascender 높이) */
           content: '';
           position: absolute;
-          left: 0; right: 0; top: 0.5rem;
+          left: 0; right: 0;
+          bottom: 1.12em;                       /* baseline + 약 0.72em (대문자 높이) */
           border-top: 2px solid #cbd5e1;
         }
-        .eng-line::after {                     /* 가운데 점선 */
+        .eng-line::after {                     /* 가운데 점선 (소문자 x-height) */
           content: '';
           position: absolute;
-          left: 0; right: 0; top: 50%;
+          left: 0; right: 0;
+          bottom: 0.9em;                        /* baseline + 약 0.5em (소문자 높이) */
           border-top: 2px dashed #93c5fd;
+        }
+        .eng-blank {                           /* 빈칸: 기준선~점선 사이(소문자 칸) 밑줄 */
+          display: inline-block;
+          height: 0.5em;
+          border-bottom: 4px solid #a78bfa;
         }
       `}</style>
 
@@ -1422,7 +1433,7 @@ export default function App() {
       {writeCell && (() => {
         const card = buildCard(writeCell);
         const hintKo = writeCell.task === 'relation' ? RELATION_KO[writeCell.relation] : ADJ_KO[writeCell.adj];
-        const blank = (w) => <span className={`inline-block border-b-4 border-purple-400 ${w} align-bottom`}>&nbsp;</span>;
+        const blank = (w) => <span className="eng-blank" style={{ width: w }} />;
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[75] p-4 backdrop-blur-sm" onClick={() => setWriteCell(null)}>
             <div className="relative bg-white rounded-[2rem] p-6 md:p-8 max-w-md w-full text-center shadow-2xl border-[6px] border-indigo-300" onClick={(e) => e.stopPropagation()}>
@@ -1450,21 +1461,21 @@ export default function App() {
                 {card.question && (
                   <div className="bg-white border-2 border-blue-100 rounded-2xl px-3 pt-2 pb-1">
                     <p className="text-xs font-black text-blue-500 tracking-wide">QUESTION · 질문</p>
-                    <div className="eng-line text-2xl md:text-3xl font-black text-slate-700 tracking-wide">
-                      <span>Who</span><span>is</span>{blank('w-16')}<span>?</span>
+                    <div className="eng-line font-black text-slate-700">
+                      <span>Who</span><span>is</span>{blank('3.5rem')}<span>?</span>
                     </div>
                   </div>
                 )}
                 <div className="bg-white border-2 border-amber-100 rounded-2xl px-3 pt-2 pb-1">
                   <p className="text-xs font-black text-amber-600 tracking-wide">{card.question ? 'ANSWER · 대답' : 'SENTENCE · 문장'}</p>
-                  <div className="eng-line text-2xl md:text-3xl font-black text-slate-700 tracking-wide">
+                  <div className="eng-line font-black text-slate-700">
                     {card.question ? (
                       <>
-                        {blank('w-14')}<span>'s</span><span>my</span>{blank('w-28')}<span>.</span>
+                        {blank('3rem')}<span>'s</span><span>my</span>{blank('6.5rem')}<span>.</span>
                       </>
                     ) : (
                       <>
-                        {blank('w-14')}<span>'s</span>{blank('w-24')}<span>.</span>
+                        {blank('3rem')}<span>'s</span>{blank('5.5rem')}<span>.</span>
                       </>
                     )}
                   </div>
@@ -1475,9 +1486,9 @@ export default function App() {
                 <div className="bg-green-50 border-2 border-green-200 rounded-2xl px-3 pt-2 pb-3 mb-4 text-left">
                   <p className="text-xs font-black text-green-600 tracking-wide mb-1">✅ 정답</p>
                   {card.question && (
-                    <div className="eng-line text-2xl md:text-3xl font-black text-green-700 tracking-wide">{`Q. ${card.question}`}</div>
+                    <div className="eng-line font-black text-green-700">{`Q. ${card.question}`}</div>
                   )}
-                  <div className="eng-line text-2xl md:text-3xl font-black text-green-700 tracking-wide">{card.question ? `A. ${card.answer}` : card.answer}</div>
+                  <div className="eng-line font-black text-green-700">{card.question ? `A. ${card.answer}` : card.answer}</div>
                   <button
                     onClick={() => speakText(card.question ? `${card.question} ... ${card.answer}` : card.answer)}
                     className="mt-3 text-sm font-bold text-indigo-600 bg-white border-2 border-indigo-200 hover:bg-indigo-50 px-4 py-1.5 rounded-full transition-colors"
