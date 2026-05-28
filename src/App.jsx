@@ -842,9 +842,9 @@ export default function App() {
            - line-height 1.8em 한 줄마다 괘선이 반복되어 줄바꿈돼도 어긋나지 않음
            - 글자 baseline(=1.2em)에 빨간 기준선, 0.7em에 x-height(소문자), 0.48em에 대문자 윗줄 */
         .eng-line {
-          font-size: clamp(1.55rem, 5.2vw, 2rem);
+          font-size: clamp(1.35rem, 4.6vw, 1.65rem);
           line-height: 1.8;
-          padding: 0 0.4rem;
+          padding: 0 0.3rem;
           word-spacing: 0.1em;
           background-image:
             repeating-linear-gradient(to bottom, transparent 0, transparent calc(1.2em - 1.5px), #f87171 calc(1.2em - 1.5px), #f87171 calc(1.2em + 1.5px), transparent calc(1.2em + 1.5px), transparent 1.8em),
@@ -1421,7 +1421,7 @@ export default function App() {
         const blank = (w) => <span className="eng-blank" style={{ width: w }} />;
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[75] p-4 backdrop-blur-sm" onClick={() => setWriteCell(null)}>
-            <div className="relative bg-white rounded-[2rem] p-6 md:p-8 max-w-md w-full text-center shadow-2xl border-[6px] border-indigo-300" onClick={(e) => e.stopPropagation()}>
+            <div className="relative bg-white rounded-[2rem] p-6 md:p-8 max-w-lg w-full text-center shadow-2xl border-[6px] border-indigo-300" onClick={(e) => e.stopPropagation()}>
 
               <button
                 onClick={() => setWriteCell(null)}
