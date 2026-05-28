@@ -108,27 +108,8 @@ const WORD_MEANING = {
   cute: '귀여운',
 };
 
-// ===== 쓰기 활동(탭) 데이터 =====
-// 아래 8개가 매번 빠짐없이 나오되 순서만 랜덤으로 섞임
-const WRITING_ITEMS = [
-  { emoji: '👨', hintKo: '아빠', prefix: "He's my", answer: "He's my father." },
-  { emoji: '👩', hintKo: '엄마', prefix: "She's my", answer: "She's my mother." },
-  { emoji: '👴', hintKo: '할아버지', prefix: "He's my", answer: "He's my grandfather." },
-  { emoji: '👵', hintKo: '할머니', prefix: "She's my", answer: "She's my grandmother." },
-  { emoji: '👦', hintKo: '형제 (형·오빠·남동생)', prefix: "He's my", answer: "He's my brother." },
-  { emoji: '👧', hintKo: '자매 (누나·언니·여동생)', prefix: "She's my", answer: "She's my sister." },
-  { emoji: '👨', hintKo: '키가 커요', prefix: "He's", answer: "He's tall." },
-  { emoji: '👧', hintKo: '귀여워요', prefix: "She's", answer: "She's cute." },
-];
-
-const shuffle = (arr) => {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-};
+// 쓰기 활동에서 빠짐없이 다뤄야 할 8개 항목
+const WRITING_TARGETS = ['father', 'mother', 'grandfather', 'grandmother', 'brother', 'sister', 'tall', 'cute'];
 
 // ===== 음성 인식 정확도 향상 유틸 =====
 // 흔한 오인식/발음 변형을 흡수하기 위한 별칭표 (같은 단어의 변형만 등록)
@@ -285,10 +266,11 @@ export default function App() {
   const [clickedWord, setClickedWord] = useState(null); // 클릭한 단어 { word, meaning }
   const [speakingDone, setSpeakingDone] = useState(false); // 말하기 차례 완료(정답/3회 시도)되어 넘어가는 중
 
-  // 쓰기 활동 탭
-  const [showWriting, setShowWriting] = useState(false);
-  const [writingList, setWritingList] = useState([]); // 섞인 문제 목록
-  const [writingRevealed, setWritingRevealed] = useState({}); // 정답 공개 여부 (idx)
+  // 쓰기 활동: 보드 위 8개 칸을 표시하고 클릭하면 질문+답 쓰기
+  const [writingMode, setWritingMode] = useState(false);
+  const [writingCells, setWritingCells] = useState([]); // 표시할 보드 칸 index 8개
+  const [writeCell, setWriteCell] = useState(null); // 쓰기 팝업이 열린 칸
+  const [writeRevealed, setWriteRevealed] = useState(false); // 정답 공개 여부
 
   // --- 마이크 오류 방지 로직 ---
   const recognitionRef = useRef(null);
@@ -720,7 +702,18 @@ export default function App() {
   };
 
   const handleCellClick = (cell) => {
-    if (cell.type !== 'normal' || (gameState !== 'playing' && gameState !== 'lobby') || isMoving || showDicePopup || actionPopup || catchEvent) return;
+    if (cell.type !== 'normal') return;
+
+    // 쓰기 활동 모드: 표시된 칸만 클릭해 쓰기 팝업 열기
+    if (writingMode) {
+      if (writingCells.includes(cell.id)) {
+        setWriteCell(cell);
+        setWriteRevealed(false);
+      }
+      return;
+    }
+
+    if ((gameState !== 'playing' && gameState !== 'lobby') || isMoving || showDicePopup || actionPopup || catchEvent) return;
 
     setCellPopup(cell);
     setClickedWord(null);
@@ -764,24 +757,36 @@ export default function App() {
     setClickedWord({ word: word.replace(/[.?!,]/g, ''), meaning });
   };
 
-  // --- 쓰기 활동 탭 ---
-  const openWritingTab = () => {
+  // --- 쓰기 활동 (보드 위 8칸 표시) ---
+  // 8개 항목(father~cute)을 각각 무작위 보드 칸에 배치해서 모두 빠짐없이 나오게 함
+  const pickWritingCells = () => {
+    const groups = {};
+    BOARD_DATA.forEach((c, i) => {
+      if (c.type !== 'normal') return;
+      const key = c.task === 'relation' ? c.relation : c.adj;
+      (groups[key] = groups[key] || []).push(i);
+    });
+    const picked = WRITING_TARGETS
+      .map((t) => {
+        const arr = groups[t] || [];
+        return arr.length ? arr[Math.floor(Math.random() * arr.length)] : undefined;
+      })
+      .filter((i) => i !== undefined);
+    setWritingCells(picked);
+  };
+
+  const enterWritingMode = () => {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    setWritingList(shuffle(WRITING_ITEMS));
-    setWritingRevealed({});
-    setShowWriting(true);
+    setCellPopup(null);
+    pickWritingCells();
+    setWritingMode(true);
   };
-  const reshuffleWriting = () => {
-    setWritingList(shuffle(WRITING_ITEMS));
-    setWritingRevealed({});
+
+  const exitWritingMode = () => {
+    setWritingMode(false);
+    setWriteCell(null);
+    setWriteRevealed(false);
   };
-  const toggleWritingAnswer = (idx) => setWritingRevealed((p) => ({ ...p, [idx]: !p[idx] }));
-  const revealAllWriting = () => {
-    const all = {};
-    writingList.forEach((_, i) => { all[i] = true; });
-    setWritingRevealed(all);
-  };
-  const hideAllWriting = () => setWritingRevealed({});
 
   const renderDots = (num) => {
     const dot = 'w-6 h-6 bg-slate-700 rounded-full shadow-inner';
@@ -867,8 +872,8 @@ export default function App() {
             </button>
           </div>
 
-          <button onClick={openWritingTab} className="px-5 py-2 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold transition-all shadow-[0_4px_0_0_rgba(67,56,202,1)] active:shadow-[0_0px_0_0_rgba(67,56,202,1)] active:translate-y-1 whitespace-nowrap">
-            ✏️ 쓰기 활동
+          <button onClick={writingMode ? exitWritingMode : enterWritingMode} className={`px-5 py-2 rounded-xl font-bold transition-all active:translate-y-1 whitespace-nowrap text-white ${writingMode ? 'bg-rose-500 hover:bg-rose-400 shadow-[0_4px_0_0_rgba(190,18,60,1)] active:shadow-[0_0px_0_0_rgba(190,18,60,1)]' : 'bg-indigo-500 hover:bg-indigo-400 shadow-[0_4px_0_0_rgba(67,56,202,1)] active:shadow-[0_0px_0_0_rgba(67,56,202,1)]'}`}>
+            {writingMode ? '✏️ 쓰기 끝내기' : '✏️ 쓰기 활동'}
           </button>
 
           <button onClick={resetGame} className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-amber-950 rounded-xl font-bold transition-all shadow-[0_4px_0_0_rgba(180,83,9,1)] active:shadow-[0_0px_0_0_rgba(180,83,9,1)] active:translate-y-1 whitespace-nowrap">
@@ -882,6 +887,18 @@ export default function App() {
           <h2 className="text-xl md:text-2xl font-black text-rose-700">
             💡 가족 그림을 누르면 <span className="text-blue-600">듣기·단어 뜻</span>을, 위쪽 <span className="text-indigo-600">✏️ 쓰기 활동</span> 탭에서 <span className="text-indigo-600">빈칸 쓰기</span>를 할 수 있어요!
           </h2>
+        </div>
+      )}
+
+      {writingMode && (
+        <div className="w-full max-w-5xl bg-indigo-600/95 text-white p-4 rounded-2xl shadow-[0_4px_0_0_rgba(0,0,0,0.2)] mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 z-10 border-2 border-white">
+          <h2 className="text-lg md:text-xl font-black flex items-center gap-2">
+            ✏️ 반짝이는 칸을 눌러 질문과 답을 써보세요! <span className="text-indigo-200 text-sm">(cute·tall은 답만)</span>
+          </h2>
+          <div className="flex gap-2">
+            <button onClick={pickWritingCells} className="px-4 py-2 bg-white text-indigo-700 rounded-xl font-bold shadow-[0_3px_0_0_rgba(0,0,0,0.2)] active:translate-y-0.5 active:shadow-none transition-all">🔀 새로 섞기</button>
+            <button onClick={exitWritingMode} className="px-4 py-2 bg-rose-500 hover:bg-rose-400 text-white rounded-xl font-bold shadow-[0_3px_0_0_rgba(190,18,60,1)] active:translate-y-0.5 active:shadow-none transition-all">끝내기</button>
+          </div>
         </div>
       )}
 
@@ -958,8 +975,20 @@ export default function App() {
             cellStyle = `${baseStyle} ${actionColor} border-[3px]`;
           }
 
+          const isWritingCell = writingMode && writingCells.includes(idx);
+          if (isWritingCell) {
+            cellStyle += ' ring-4 ring-indigo-500 animate-pulse !cursor-pointer';
+          } else if (writingMode && cell.type === 'normal') {
+            cellStyle += ' opacity-40';
+          }
+
           return (
             <div key={idx} className={cellStyle} onClick={() => handleCellClick(cell)}>
+              {isWritingCell && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-40 bg-indigo-600 text-white text-xs md:text-sm font-black px-2 py-0.5 rounded-full border-2 border-white shadow-md">
+                  ✏️ 쓰기
+                </div>
+              )}
               <div className="absolute -top-4 -left-2 md:-top-6 md:-left-4 flex gap-1 z-30 w-full px-1">
                 {isPlayerHere && (
                   <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-blue-400 to-blue-700 rounded-full border-[3px] border-white shadow-[0_8px_10px_rgba(0,0,0,0.5),inset_0_4px_4px_rgba(255,255,255,0.4)] flex items-center justify-center text-2xl md:text-3xl animate-bounce z-40">
@@ -1366,69 +1395,75 @@ export default function App() {
         );
       })()}
 
-      {showWriting && (
-        <div className="fixed inset-0 z-[80] overflow-y-auto bg-gradient-to-b from-amber-100 via-orange-100 to-rose-100" style={appStyle}>
-          <div className="max-w-3xl mx-auto p-4 md:p-8">
+      {writeCell && (() => {
+        const card = buildCard(writeCell);
+        const hintKo = writeCell.task === 'relation' ? RELATION_KO[writeCell.relation] : ADJ_KO[writeCell.adj];
+        const inputClass = 'w-full px-3 py-2 text-xl font-bold text-slate-800 bg-amber-50 border-2 border-amber-200 rounded-xl focus:outline-none focus:border-amber-400';
+        return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[75] p-4 backdrop-blur-sm" onClick={() => setWriteCell(null)}>
+            <div className="relative bg-white rounded-[2rem] p-6 md:p-8 max-w-md w-full text-center shadow-2xl border-[6px] border-indigo-300" onClick={(e) => e.stopPropagation()}>
 
-            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_4px_0_0_rgba(0,0,0,0.15)] border-2 border-indigo-300 p-4 mb-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <h2 className="text-2xl md:text-3xl font-black text-indigo-700 flex items-center gap-2">✏️ 쓰기 활동</h2>
-              <div className="flex gap-2 flex-wrap justify-center">
-                <button onClick={reshuffleWriting} className="px-4 py-2 bg-purple-500 hover:bg-purple-400 text-white rounded-xl font-bold shadow-[0_3px_0_0_rgba(126,34,206,1)] active:translate-y-0.5 active:shadow-none transition-all">🔀 새로 섞기</button>
-                <button onClick={revealAllWriting} className="px-4 py-2 bg-green-500 hover:bg-green-400 text-white rounded-xl font-bold shadow-[0_3px_0_0_rgba(22,163,74,1)] active:translate-y-0.5 active:shadow-none transition-all">전체 정답</button>
-                <button onClick={hideAllWriting} className="px-4 py-2 bg-slate-400 hover:bg-slate-300 text-white rounded-xl font-bold shadow-[0_3px_0_0_rgba(100,116,139,1)] active:translate-y-0.5 active:shadow-none transition-all">전체 가리기</button>
-                <button onClick={() => setShowWriting(false)} className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-bold shadow-[0_3px_0_0_rgba(180,83,9,1)] active:translate-y-0.5 active:shadow-none transition-all">← 돌아가기</button>
+              <button
+                onClick={() => setWriteCell(null)}
+                className="absolute top-4 right-4 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-black text-xl flex items-center justify-center transition-colors"
+                aria-label="닫기"
+              >
+                ×
+              </button>
+
+              <div className="flex flex-col items-center gap-2 mb-4">
+                <div className="w-24 h-24 flex items-center justify-center bg-indigo-50 rounded-3xl border-2 border-indigo-100 text-6xl drop-shadow-sm">
+                  {writeCell.emoji}
+                </div>
+                <span className="text-base font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">{hintKo}</span>
+              </div>
+
+              <p className="text-sm font-black text-indigo-600 mb-4">
+                📝 {card.question ? '질문과 답을 영어로 써보세요!' : '문장을 영어로 써보세요!'}
+              </p>
+
+              <div className="space-y-3 mb-4 text-left">
+                {card.question && (
+                  <div>
+                    <label className="text-xs font-black text-blue-500 tracking-wide">QUESTION · 질문</label>
+                    <input type="text" placeholder="질문을 영어로 써보세요" className={inputClass} />
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-black text-amber-600 tracking-wide">{card.question ? 'ANSWER · 대답' : 'SENTENCE · 문장'}</label>
+                  <input type="text" placeholder="영어로 써보세요" className={inputClass} />
+                </div>
+              </div>
+
+              {writeRevealed && (
+                <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-4 mb-4 text-left">
+                  {card.question && <p className="text-xl md:text-2xl font-black text-green-700">Q. {card.question}</p>}
+                  <p className="text-xl md:text-2xl font-black text-green-700">{card.question ? 'A. ' : ''}{card.answer}</p>
+                  <button
+                    onClick={() => speakText(card.question ? `${card.question} ... ${card.answer}` : card.answer)}
+                    className="mt-2 text-sm font-bold text-indigo-600 bg-white border-2 border-indigo-200 hover:bg-indigo-50 px-4 py-1.5 rounded-full transition-colors"
+                  >
+                    🔊 들어보기
+                  </button>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setWriteRevealed((v) => !v)}
+                  className={`flex-1 py-3 rounded-2xl font-black text-white text-lg transition-all active:translate-y-1
+                    ${writeRevealed ? 'bg-slate-400 hover:bg-slate-300 shadow-[0_4px_0_0_rgba(100,116,139,1)]' : 'bg-green-500 hover:bg-green-400 shadow-[0_4px_0_0_rgba(22,163,74,1)]'} active:shadow-none`}
+                >
+                  {writeRevealed ? '🙈 가리기' : '✅ 정답 보기'}
+                </button>
+                <button onClick={() => setWriteCell(null)} className="px-5 py-3 bg-white border-2 border-slate-300 text-slate-500 rounded-2xl font-bold hover:bg-slate-50 transition-all">
+                  닫기
+                </button>
               </div>
             </div>
-
-            <p className="text-center text-base md:text-lg font-bold text-slate-600 bg-white/80 rounded-2xl py-3 px-4 mb-5 border-2 border-amber-200">
-              📝 그림과 한글 힌트를 보고 <span className="text-rose-600">빈칸에 알맞은 영어</span>를 써 보세요. 다 쓴 뒤 <span className="text-green-600">정답 보기</span>로 확인!
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-10">
-              {writingList.map((item, idx) => {
-                const show = !!writingRevealed[idx];
-                return (
-                  <div key={idx} className="bg-white rounded-2xl border-2 border-slate-200 shadow-[0_4px_0_0_rgba(0,0,0,0.08)] p-4 flex flex-col">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="text-5xl drop-shadow-sm">{item.emoji}</span>
-                      <span className="text-lg font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">{item.hintKo}</span>
-                    </div>
-
-                    {/* 문제(빈칸) */}
-                    <div className="text-2xl md:text-3xl font-black text-slate-700 tracking-wide flex flex-wrap items-end gap-x-2 mb-3">
-                      <span>{item.prefix}</span>
-                      <span className="inline-block border-b-4 border-purple-400 w-24" />
-                      <span>.</span>
-                    </div>
-
-                    {/* 학생이 직접 쓰는 박스 */}
-                    <input
-                      type="text"
-                      placeholder="여기에 영어로 써보세요"
-                      className="w-full mb-3 px-3 py-2 text-xl font-bold text-slate-800 bg-amber-50 border-2 border-amber-200 rounded-xl focus:outline-none focus:border-amber-400"
-                    />
-
-                    {show && (
-                      <div className="mb-3 flex items-center justify-between gap-2 bg-green-50 border-2 border-green-200 rounded-xl px-3 py-2">
-                        <span className="text-xl md:text-2xl font-black text-green-700">{item.answer}</span>
-                        <button onClick={() => speakText(item.answer)} className="text-indigo-600 bg-white border-2 border-indigo-200 hover:bg-indigo-50 rounded-full px-3 py-1 font-bold" title="듣기">🔊</button>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => toggleWritingAnswer(idx)}
-                      className={`w-full py-2 rounded-xl font-bold text-white transition-all active:translate-y-0.5
-                        ${show ? 'bg-slate-400 hover:bg-slate-300 shadow-[0_3px_0_0_rgba(100,116,139,1)]' : 'bg-green-500 hover:bg-green-400 shadow-[0_3px_0_0_rgba(22,163,74,1)]'} active:shadow-none`}
-                    >
-                      {show ? '🙈 가리기' : '✅ 정답 보기'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
     </div>
   );
