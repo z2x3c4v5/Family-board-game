@@ -696,11 +696,14 @@ export default function App() {
       setTimeout(() => {
         setGameState('playing');
         setTurn('player');
-      }, 1000);
+      }, 4000); // 안내 문구를 3초 더 길게 보여줌
     };
 
+    // 질문&대답 모드의 관계 칸일 때만 AI도 질문을 합니다. (대답만 하기 모드는 대답만)
+    const asksQuestion = built.taskType === 'relation' && gameMode === 'qna';
+
     setTimeout(() => {
-      if (built.taskType === 'relation') {
+      if (asksQuestion) {
         setAiSpeechText(`"${built.question}"`);
         speakText(built.question);
         setTimeout(() => {
@@ -709,7 +712,6 @@ export default function App() {
           setTimeout(finishTurn, 2500);
         }, 2500);
       } else {
-        // 묘사 칸: 한글 힌트를 보고 영어 대답을 시범으로 말합니다.
         setAiSpeechText(`"${built.answer}"`);
         speakText(built.answer);
         setTimeout(finishTurn, 2500);
