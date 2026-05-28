@@ -689,7 +689,7 @@ export default function App() {
     setCurrentTask({ cell, ...built });
 
     const finishTurn = () => {
-      setAiSpeechText('내 차례 끝!');
+      setAiSpeechText('AI 차례 끝. 이제 네가 주사위를 굴려서 정답을 말해봐!');
       setTimeout(() => {
         setGameState('playing');
         setTurn('player');
