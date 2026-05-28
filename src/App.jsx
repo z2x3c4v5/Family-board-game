@@ -181,39 +181,25 @@ function classify(token, set) {
   return { best, bestd };
 }
 
-// 띄어쓰기가 흩어진 경우까지 대비해 인접 토큰 결합본도 후보로 만든다
-function buildCandidates(tokens) {
-  const cands = [...tokens];
-  for (let i = 0; i < tokens.length - 1; i++) cands.push(tokens[i] + tokens[i + 1]);
-  if (tokens.length) cands.push(tokens.join(''));
-  return cands;
-}
-
-// 닫힌 집합에서 target으로 분류되는 후보가 있는지 (혼동 단어 방지)
+// 닫힌 집합에서 target으로 분류되는 토큰이 있는지 (혼동/오인식 방지, 엄격)
+// - 형용사(tall/cute): 정확히 일치하거나 등록된 별칭만 인정 (거리 0)
+// - 짧은 관계어(father 등): 거리 1까지 / 긴 관계어(grandfather): 거리 2까지 + 띄어 읽기 보정
 function matchesClosed(tokens, target, set) {
-  const thr = target.length >= 10 ? 3 : 2;
-  for (const cand of buildCandidates(tokens)) {
-    const { best, bestd } = classify(cand, set);
+  const isLong = target.length >= 10;
+  const thr = set === ADJECTIVES ? 0 : isLong ? 2 : 1;
+
+  for (const tok of tokens) {
+    const { best, bestd } = classify(tok, set);
     if (best === target && bestd <= thr) return true;
   }
-  // 붙여서 인식된 경우: 포함된 단어 중 가장 긴(=가장 구체적인) 단어가 정답이면 인정
-  // (grandfather 안의 father 처럼 짧은 단어로 오인되는 것을 방지)
-  const concat = tokens.join('');
-  let bestLen = 0;
-  let winners = [];
-  for (const c of set) {
-    for (const a of ALIASES[c] || [c]) {
-      if (concat.includes(a)) {
-        if (a.length > bestLen) {
-          bestLen = a.length;
-          winners = [c];
-        } else if (a.length === bestLen && !winners.includes(c)) {
-          winners.push(c);
-        }
-      }
+  // grandfather/grandmother를 "grand father"처럼 띄어 읽은 경우만 인접 토큰을 합쳐 비교
+  if (isLong) {
+    for (let i = 0; i < tokens.length - 1; i++) {
+      const { best, bestd } = classify(tokens[i] + tokens[i + 1], set);
+      if (best === target && bestd <= thr) return true;
     }
   }
-  return winners.includes(target);
+  return false;
 }
 
 // he/she 대명사가 들어있는지 (성별 구분 유지)
@@ -222,10 +208,7 @@ function hasPronoun(tokens, gender) {
     const { best, bestd } = classify(t, ['he', 'she']);
     if (best === gender && bestd <= 1) return true;
   }
-  // 띄어쓰기 없이 "hesmyfather" 처럼 붙어 나온 경우 대비
-  const concat = tokens.join('');
-  if (gender === 'she') return /^she/.test(concat);
-  return /^he/.test(concat) && !/^she/.test(concat);
+  return false;
 }
 
 // 여러 후보 transcript 중 하나라도 정답이면 true
@@ -238,11 +221,7 @@ function matchSpoken(transcripts, task) {
 
     if (task.taskType === 'relation') {
       if (!matchesClosed(tokens, task.cell.relation, RELATIONS)) continue;
-      if (task.mode === 'qna') {
-        const concat = tokens.join('');
-        const qOK = tokens.some((t) => wordSim(t, 'who')) || concat.includes('who') || concat.includes('hoo');
-        if (!qOK) continue;
-      }
+      if (task.mode === 'qna' && !tokens.some((t) => wordSim(t, 'who'))) continue;
       return true;
     } else if (matchesClosed(tokens, task.cell.adj, ADJECTIVES)) {
       return true;
@@ -280,7 +259,6 @@ export default function App() {
 
   const [currentTask, setCurrentTask] = useState(null);
   const [isListening, setIsListening] = useState(false);
-  const [spokenText, setSpokenText] = useState('');
   const [feedback, setFeedback] = useState('');
   const [aiSpeechText, setAiSpeechText] = useState('');
 
@@ -546,7 +524,6 @@ export default function App() {
 
   const startSpeakingTask = (cell) => {
     setGameState('speaking');
-    setSpokenText('');
     setFeedback('');
     attemptsRef.current = 0;
     setSpeakingDone(false);
@@ -584,8 +561,8 @@ export default function App() {
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.lang = 'en-US';
-    recognition.interimResults = true; // 중간 결과까지 받아 더 많은 기회를 확보
-    recognition.maxAlternatives = 5; // 상위 5개 후보를 모두 받아 채점 정확도를 높임
+    recognition.interimResults = false; // 최종 결과만 채점 (오인식 누적 방지)
+    recognition.maxAlternatives = 3;
 
     const goToAiTurn = () => {
       setTimeout(() => {
@@ -617,18 +594,18 @@ export default function App() {
     };
 
     recognition.onresult = (event) => {
-      // 중간/최종 결과의 모든 후보(transcript)를 누적해서 함께 채점
-      for (let i = 0; i < event.results.length; i++) {
-        const res = event.results[i];
+      // 최종 결과의 후보(transcript)들만 모아서 채점
+      const cands = [];
+      const res = event.results[0];
+      if (res) {
         for (let j = 0; j < res.length; j++) {
           const t = res[j] && res[j].transcript;
-          if (t && !collectedRef.current.includes(t)) collectedRef.current.push(t);
+          if (t) cands.push(t);
         }
       }
-      const latest = event.results[event.results.length - 1]?.[0]?.transcript;
-      setSpokenText(latest || collectedRef.current[collectedRef.current.length - 1] || '');
+      collectedRef.current = cands;
 
-      if (!answeredRef.current && currentTaskRef.current && matchSpoken(collectedRef.current, currentTaskRef.current)) {
+      if (!answeredRef.current && currentTaskRef.current && matchSpoken(cands, currentTaskRef.current)) {
         acceptCorrect();
         try {
           recognition.stop();
@@ -662,15 +639,12 @@ export default function App() {
         finishWithEncouragement();
         return;
       }
-      const last = collectedRef.current[collectedRef.current.length - 1] || '';
-      const heard = last ? `(인식된 말: ${last}) ` : '잘 안 들렸어요. ';
-      setFeedback(`앗, 다시 해볼까요? ${heard}— ${attemptsRef.current}/3번째 시도`);
+      setFeedback(`앗, 다시 또박또박 말해볼까요? 🎤 — ${attemptsRef.current}/3번째 시도`);
     };
 
     recognitionRef.current = recognition;
 
     try {
-      setSpokenText('');
       setFeedback('');
       answeredRef.current = false;
       collectedRef.current = [];
@@ -1223,13 +1197,6 @@ export default function App() {
               </button>
 
               {isListening && <p className="text-red-500 font-bold mt-6 animate-pulse">듣고 있어요... 🗣️</p>}
-
-              {spokenText && (
-                <div className="mt-6 p-4 bg-slate-50 rounded-2xl border-2 border-slate-200">
-                  <p className="text-xs text-slate-400 font-bold mb-1 uppercase">내가 한 말</p>
-                  <p className="text-xl font-black text-slate-800">"{spokenText}"</p>
-                </div>
-              )}
 
               {feedback && (
                 <div className={`mt-4 text-xl font-black py-3 px-4 rounded-xl border-2 ${(feedback.includes('정답') || feedback.includes('잘했')) ? 'text-green-700 bg-green-100 border-green-300' : 'text-rose-600 bg-rose-50 border-rose-200'}`}>
