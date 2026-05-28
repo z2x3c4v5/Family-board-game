@@ -1398,7 +1398,7 @@ export default function App() {
       {writeCell && (() => {
         const card = buildCard(writeCell);
         const hintKo = writeCell.task === 'relation' ? RELATION_KO[writeCell.relation] : ADJ_KO[writeCell.adj];
-        const inputClass = 'w-full px-3 py-2 text-xl font-bold text-slate-800 bg-amber-50 border-2 border-amber-200 rounded-xl focus:outline-none focus:border-amber-400';
+        const blank = (w) => <span className={`inline-block border-b-4 border-purple-400 ${w} align-bottom`}>&nbsp;</span>;
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[75] p-4 backdrop-blur-sm" onClick={() => setWriteCell(null)}>
             <div className="relative bg-white rounded-[2rem] p-6 md:p-8 max-w-md w-full text-center shadow-2xl border-[6px] border-indigo-300" onClick={(e) => e.stopPropagation()}>
@@ -1419,19 +1419,31 @@ export default function App() {
               </div>
 
               <p className="text-sm font-black text-indigo-600 mb-4">
-                📝 {card.question ? '질문과 답을 영어로 써보세요!' : '문장을 영어로 써보세요!'}
+                📝 빈칸을 채워 공책에 써보세요!
               </p>
 
               <div className="space-y-3 mb-4 text-left">
                 {card.question && (
-                  <div>
-                    <label className="text-xs font-black text-blue-500 tracking-wide">QUESTION · 질문</label>
-                    <input type="text" placeholder="질문을 영어로 써보세요" className={inputClass} />
+                  <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-4">
+                    <p className="text-xs font-black text-blue-500 tracking-wide mb-2">QUESTION · 질문</p>
+                    <p className="text-2xl md:text-3xl font-black text-slate-700 tracking-wide flex flex-wrap items-end gap-x-2">
+                      <span>Who</span><span>is</span>{blank('w-16')}<span>?</span>
+                    </p>
                   </div>
                 )}
-                <div>
-                  <label className="text-xs font-black text-amber-600 tracking-wide">{card.question ? 'ANSWER · 대답' : 'SENTENCE · 문장'}</label>
-                  <input type="text" placeholder="영어로 써보세요" className={inputClass} />
+                <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-4">
+                  <p className="text-xs font-black text-amber-600 tracking-wide mb-2">{card.question ? 'ANSWER · 대답' : 'SENTENCE · 문장'}</p>
+                  <p className="text-2xl md:text-3xl font-black text-slate-700 tracking-wide flex flex-wrap items-end gap-x-2">
+                    {card.question ? (
+                      <>
+                        {blank('w-14')}<span>'s</span><span>my</span>{blank('w-28')}<span>.</span>
+                      </>
+                    ) : (
+                      <>
+                        {blank('w-14')}<span>'s</span>{blank('w-24')}<span>.</span>
+                      </>
+                    )}
+                  </p>
                 </div>
               </div>
 
