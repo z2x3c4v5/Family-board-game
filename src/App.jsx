@@ -1462,13 +1462,19 @@ export default function App() {
 
               <div className="flex gap-2">
                 <button
+                  onClick={() => speakText(card.question ? `${card.question} ... ${card.answer}` : card.answer)}
+                  className="py-3 px-5 bg-blue-500 hover:bg-blue-400 text-white rounded-2xl font-black text-lg shadow-[0_4px_0_0_rgba(29,78,216,1)] active:shadow-none active:translate-y-1 transition-all whitespace-nowrap"
+                >
+                  🔊 듣기
+                </button>
+                <button
                   onClick={() => setWriteRevealed((v) => !v)}
                   className={`flex-1 py-3 rounded-2xl font-black text-white text-lg transition-all active:translate-y-1
                     ${writeRevealed ? 'bg-slate-400 hover:bg-slate-300 shadow-[0_4px_0_0_rgba(100,116,139,1)]' : 'bg-green-500 hover:bg-green-400 shadow-[0_4px_0_0_rgba(22,163,74,1)]'} active:shadow-none`}
                 >
                   {writeRevealed ? '🙈 가리기' : '✅ 정답 보기'}
                 </button>
-                <button onClick={() => setWriteCell(null)} className="px-5 py-3 bg-white border-2 border-slate-300 text-slate-500 rounded-2xl font-bold hover:bg-slate-50 transition-all">
+                <button onClick={() => setWriteCell(null)} className="px-4 py-3 bg-white border-2 border-slate-300 text-slate-500 rounded-2xl font-bold hover:bg-slate-50 transition-all">
                   닫기
                 </button>
               </div>
