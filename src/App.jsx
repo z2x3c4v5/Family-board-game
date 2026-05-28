@@ -69,7 +69,7 @@ const buildTask = (cell) => {
   };
 };
 
-// 칸 클릭 팝업(읽기/듣기 + 쓰기)에 쓸 QUESTION·ANSWER 카드 데이터
+// 칸 클릭 팝업(읽기/듣기)에 쓸 QUESTION·ANSWER 카드 데이터
 const buildCard = (cell) => {
   const P = cell.gender === 'he' ? 'He' : 'She';
   const p = cell.gender;
@@ -78,16 +78,12 @@ const buildCard = (cell) => {
       category: '가족 관계',
       question: `Who is ${p}?`,
       answer: `${P}'s my ${cell.relation}.`,
-      answerPrefix: `${P}'s my`, // 빈칸 앞의 고정 부분
-      blankWords: [cell.relation], // 빈칸으로 가릴 핵심 단어
     };
   }
   return {
     category: '가족 묘사',
     question: null, // 묘사 칸은 질문 없이 바로 표현만
     answer: `${P}'s ${cell.adj}.`,
-    answerPrefix: `${P}'s`,
-    blankWords: [cell.adj],
   };
 };
 
@@ -110,6 +106,28 @@ const WORD_MEANING = {
   sister: '자매 (여자 형제)',
   tall: '키가 큰',
   cute: '귀여운',
+};
+
+// ===== 쓰기 활동(탭) 데이터 =====
+// 아래 8개가 매번 빠짐없이 나오되 순서만 랜덤으로 섞임
+const WRITING_ITEMS = [
+  { emoji: '👨', hintKo: '아빠', prefix: "He's my", answer: "He's my father." },
+  { emoji: '👩', hintKo: '엄마', prefix: "She's my", answer: "She's my mother." },
+  { emoji: '👴', hintKo: '할아버지', prefix: "He's my", answer: "He's my grandfather." },
+  { emoji: '👵', hintKo: '할머니', prefix: "She's my", answer: "She's my grandmother." },
+  { emoji: '👦', hintKo: '형제 (형·오빠·남동생)', prefix: "He's my", answer: "He's my brother." },
+  { emoji: '👧', hintKo: '자매 (누나·언니·여동생)', prefix: "She's my", answer: "She's my sister." },
+  { emoji: '👨', hintKo: '키가 커요', prefix: "He's", answer: "He's tall." },
+  { emoji: '👧', hintKo: '귀여워요', prefix: "She's", answer: "She's cute." },
+];
+
+const shuffle = (arr) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 };
 
 // ===== 음성 인식 정확도 향상 유틸 =====
@@ -262,12 +280,15 @@ export default function App() {
   const [feedback, setFeedback] = useState('');
   const [aiSpeechText, setAiSpeechText] = useState('');
 
-  // 칸 클릭 팝업 / 칸별 쓰기 활동
+  // 칸 클릭 팝업 (듣기 / 단어 뜻)
   const [cellPopup, setCellPopup] = useState(null); // 클릭한 칸(cell)
-  const [cellWriting, setCellWriting] = useState(false); // 쓰기 활동 화면 여부
-  const [cellAnswerShown, setCellAnswerShown] = useState(false); // 정답 공개 여부
   const [clickedWord, setClickedWord] = useState(null); // 클릭한 단어 { word, meaning }
   const [speakingDone, setSpeakingDone] = useState(false); // 말하기 차례 완료(정답/3회 시도)되어 넘어가는 중
+
+  // 쓰기 활동 탭
+  const [showWriting, setShowWriting] = useState(false);
+  const [writingList, setWritingList] = useState([]); // 섞인 문제 목록
+  const [writingRevealed, setWritingRevealed] = useState({}); // 정답 공개 여부 (idx)
 
   // --- 마이크 오류 방지 로직 ---
   const recognitionRef = useRef(null);
@@ -702,8 +723,6 @@ export default function App() {
     if (cell.type !== 'normal' || (gameState !== 'playing' && gameState !== 'lobby') || isMoving || showDicePopup || actionPopup || catchEvent) return;
 
     setCellPopup(cell);
-    setCellWriting(false);
-    setCellAnswerShown(false);
     setClickedWord(null);
     const card = buildCard(cell);
     const speech = card.question ? `${card.question} ... ${card.answer}` : card.answer;
@@ -731,23 +750,9 @@ export default function App() {
     resetGame();
   };
 
-  // --- 칸 클릭 팝업 / 칸별 쓰기 활동 ---
+  // --- 칸 클릭 팝업 (듣기 / 단어 뜻) ---
   const closeCellPopup = () => {
     setCellPopup(null);
-    setCellWriting(false);
-    setCellAnswerShown(false);
-    setClickedWord(null);
-  };
-
-  const openCellWriting = () => {
-    setCellAnswerShown(false);
-    setClickedWord(null);
-    setCellWriting(true);
-  };
-
-  const backToReading = () => {
-    setCellWriting(false);
-    setCellAnswerShown(false);
     setClickedWord(null);
   };
 
@@ -758,6 +763,25 @@ export default function App() {
     const meaning = WORD_MEANING[clean] || WORD_MEANING[clean.replace(/'s$/, '')] || '뜻 정보 없음';
     setClickedWord({ word: word.replace(/[.?!,]/g, ''), meaning });
   };
+
+  // --- 쓰기 활동 탭 ---
+  const openWritingTab = () => {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    setWritingList(shuffle(WRITING_ITEMS));
+    setWritingRevealed({});
+    setShowWriting(true);
+  };
+  const reshuffleWriting = () => {
+    setWritingList(shuffle(WRITING_ITEMS));
+    setWritingRevealed({});
+  };
+  const toggleWritingAnswer = (idx) => setWritingRevealed((p) => ({ ...p, [idx]: !p[idx] }));
+  const revealAllWriting = () => {
+    const all = {};
+    writingList.forEach((_, i) => { all[i] = true; });
+    setWritingRevealed(all);
+  };
+  const hideAllWriting = () => setWritingRevealed({});
 
   const renderDots = (num) => {
     const dot = 'w-6 h-6 bg-slate-700 rounded-full shadow-inner';
@@ -843,6 +867,10 @@ export default function App() {
             </button>
           </div>
 
+          <button onClick={openWritingTab} className="px-5 py-2 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold transition-all shadow-[0_4px_0_0_rgba(67,56,202,1)] active:shadow-[0_0px_0_0_rgba(67,56,202,1)] active:translate-y-1 whitespace-nowrap">
+            ✏️ 쓰기 활동
+          </button>
+
           <button onClick={resetGame} className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-amber-950 rounded-xl font-bold transition-all shadow-[0_4px_0_0_rgba(180,83,9,1)] active:shadow-[0_0px_0_0_rgba(180,83,9,1)] active:translate-y-1 whitespace-nowrap">
             처음부터 다시 하기
           </button>
@@ -852,7 +880,7 @@ export default function App() {
       {gameState === 'lobby' && (
         <div className="w-full max-w-5xl bg-white/95 p-4 rounded-2xl shadow-md mb-4 text-center border-4 border-rose-400 z-10 animate-pulse">
           <h2 className="text-xl md:text-2xl font-black text-rose-700">
-            💡 보드의 가족 그림을 누르면 <span className="text-blue-600">듣기</span> 또는 <span className="text-indigo-600">쓰기 활동</span>(빈칸 채우기)을 할 수 있어요!
+            💡 가족 그림을 누르면 <span className="text-blue-600">듣기·단어 뜻</span>을, 위쪽 <span className="text-indigo-600">✏️ 쓰기 활동</span> 탭에서 <span className="text-indigo-600">빈칸 쓰기</span>를 할 수 있어요!
           </h2>
         </div>
       )}
@@ -1315,83 +1343,92 @@ export default function App() {
                 </span>
               </div>
 
-              {!cellWriting ? (
-                <>
-                  {questionBox}
+              {questionBox}
 
-                  {/* 대답/표현 박스 */}
-                  <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-4 mb-3 text-left">
-                    <p className="text-xs font-black text-amber-600 tracking-wide mb-1">{card.question ? 'ANSWER · 대답' : '표현 · 문장'}</p>
-                    <div className="text-2xl md:text-3xl tracking-wide flex flex-wrap">
-                      {words(card.answer, 'hover:bg-amber-200')}
-                    </div>
-                  </div>
+              {/* 대답/표현 박스 */}
+              <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-4 mb-3 text-left">
+                <p className="text-xs font-black text-amber-600 tracking-wide mb-1">{card.question ? 'ANSWER · 대답' : '표현 · 문장'}</p>
+                <div className="text-2xl md:text-3xl tracking-wide flex flex-wrap">
+                  {words(card.answer, 'hover:bg-amber-200')}
+                </div>
+              </div>
 
-                  {meaningLine}
+              {meaningLine}
 
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => speakText(card.question ? `${card.question} ... ${card.answer}` : card.answer)}
-                      className="flex-1 py-3 bg-green-500 hover:bg-green-400 text-white rounded-2xl font-black text-lg shadow-[0_4px_0_0_rgba(22,163,74,1)] active:shadow-none active:translate-y-1 transition-all"
-                    >
-                      🔊 다시 듣기
-                    </button>
-                    <button
-                      onClick={openCellWriting}
-                      className="flex-1 py-3 bg-purple-500 hover:bg-purple-400 text-white rounded-2xl font-black text-lg shadow-[0_4px_0_0_rgba(126,34,206,1)] active:shadow-none active:translate-y-1 transition-all"
-                    >
-                      ✏️ 쓰기 활동
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {questionBox}
-                  {card.question && meaningLine}
-
-                  <p className="text-sm font-black text-purple-600 mb-2">✏️ 빈칸에 알맞은 단어를 써보세요</p>
-
-                  {/* 정답/빈칸 박스 */}
-                  <div className="bg-purple-50 border-2 border-purple-100 rounded-2xl p-5 mb-4 text-left min-h-[80px] flex items-center">
-                    {cellAnswerShown ? (
-                      <p className="text-3xl md:text-4xl font-black text-green-600 tracking-wide">{card.answer}</p>
-                    ) : (
-                      <p className="text-3xl md:text-4xl font-black text-slate-700 tracking-wide flex flex-wrap items-end gap-x-2 gap-y-3">
-                        <span>{card.answerPrefix}</span>
-                        {card.blankWords.map((_, i) => (
-                          <span key={i} className="inline-block border-b-4 border-purple-400 w-28" />
-                        ))}
-                        <span>.</span>
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => { setCellAnswerShown(true); speakText(card.answer); }}
-                      className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-white rounded-2xl font-black text-lg shadow-[0_4px_0_0_rgba(180,83,9,1)] active:shadow-none active:translate-y-1 transition-all"
-                    >
-                      🔊 답 보기
-                    </button>
-                    <button
-                      onClick={() => setCellAnswerShown(false)}
-                      className="flex-1 py-3 bg-slate-400 hover:bg-slate-300 text-white rounded-2xl font-black text-lg shadow-[0_4px_0_0_rgba(100,116,139,1)] active:shadow-none active:translate-y-1 transition-all"
-                    >
-                      🔄 다시 쓰기
-                    </button>
-                    <button
-                      onClick={backToReading}
-                      className="px-4 py-3 bg-white border-2 border-slate-300 text-slate-500 rounded-2xl font-bold hover:bg-slate-50 transition-all whitespace-nowrap"
-                    >
-                      ← 읽기로
-                    </button>
-                  </div>
-                </>
-              )}
+              <button
+                onClick={() => speakText(card.question ? `${card.question} ... ${card.answer}` : card.answer)}
+                className="w-full py-3 bg-green-500 hover:bg-green-400 text-white rounded-2xl font-black text-lg shadow-[0_4px_0_0_rgba(22,163,74,1)] active:shadow-none active:translate-y-1 transition-all"
+              >
+                🔊 다시 듣기
+              </button>
             </div>
           </div>
         );
       })()}
+
+      {showWriting && (
+        <div className="fixed inset-0 z-[80] overflow-y-auto bg-gradient-to-b from-amber-100 via-orange-100 to-rose-100" style={appStyle}>
+          <div className="max-w-3xl mx-auto p-4 md:p-8">
+
+            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm rounded-2xl shadow-[0_4px_0_0_rgba(0,0,0,0.15)] border-2 border-indigo-300 p-4 mb-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <h2 className="text-2xl md:text-3xl font-black text-indigo-700 flex items-center gap-2">✏️ 쓰기 활동</h2>
+              <div className="flex gap-2 flex-wrap justify-center">
+                <button onClick={reshuffleWriting} className="px-4 py-2 bg-purple-500 hover:bg-purple-400 text-white rounded-xl font-bold shadow-[0_3px_0_0_rgba(126,34,206,1)] active:translate-y-0.5 active:shadow-none transition-all">🔀 새로 섞기</button>
+                <button onClick={revealAllWriting} className="px-4 py-2 bg-green-500 hover:bg-green-400 text-white rounded-xl font-bold shadow-[0_3px_0_0_rgba(22,163,74,1)] active:translate-y-0.5 active:shadow-none transition-all">전체 정답</button>
+                <button onClick={hideAllWriting} className="px-4 py-2 bg-slate-400 hover:bg-slate-300 text-white rounded-xl font-bold shadow-[0_3px_0_0_rgba(100,116,139,1)] active:translate-y-0.5 active:shadow-none transition-all">전체 가리기</button>
+                <button onClick={() => setShowWriting(false)} className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-bold shadow-[0_3px_0_0_rgba(180,83,9,1)] active:translate-y-0.5 active:shadow-none transition-all">← 돌아가기</button>
+              </div>
+            </div>
+
+            <p className="text-center text-base md:text-lg font-bold text-slate-600 bg-white/80 rounded-2xl py-3 px-4 mb-5 border-2 border-amber-200">
+              📝 그림과 한글 힌트를 보고 <span className="text-rose-600">빈칸에 알맞은 영어</span>를 써 보세요. 다 쓴 뒤 <span className="text-green-600">정답 보기</span>로 확인!
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-10">
+              {writingList.map((item, idx) => {
+                const show = !!writingRevealed[idx];
+                return (
+                  <div key={idx} className="bg-white rounded-2xl border-2 border-slate-200 shadow-[0_4px_0_0_rgba(0,0,0,0.08)] p-4 flex flex-col">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-5xl drop-shadow-sm">{item.emoji}</span>
+                      <span className="text-lg font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">{item.hintKo}</span>
+                    </div>
+
+                    {/* 문제(빈칸) */}
+                    <div className="text-2xl md:text-3xl font-black text-slate-700 tracking-wide flex flex-wrap items-end gap-x-2 mb-3">
+                      <span>{item.prefix}</span>
+                      <span className="inline-block border-b-4 border-purple-400 w-24" />
+                      <span>.</span>
+                    </div>
+
+                    {/* 학생이 직접 쓰는 박스 */}
+                    <input
+                      type="text"
+                      placeholder="여기에 영어로 써보세요"
+                      className="w-full mb-3 px-3 py-2 text-xl font-bold text-slate-800 bg-amber-50 border-2 border-amber-200 rounded-xl focus:outline-none focus:border-amber-400"
+                    />
+
+                    {show && (
+                      <div className="mb-3 flex items-center justify-between gap-2 bg-green-50 border-2 border-green-200 rounded-xl px-3 py-2">
+                        <span className="text-xl md:text-2xl font-black text-green-700">{item.answer}</span>
+                        <button onClick={() => speakText(item.answer)} className="text-indigo-600 bg-white border-2 border-indigo-200 hover:bg-indigo-50 rounded-full px-3 py-1 font-bold" title="듣기">🔊</button>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => toggleWritingAnswer(idx)}
+                      className={`w-full py-2 rounded-xl font-bold text-white transition-all active:translate-y-0.5
+                        ${show ? 'bg-slate-400 hover:bg-slate-300 shadow-[0_3px_0_0_rgba(100,116,139,1)]' : 'bg-green-500 hover:bg-green-400 shadow-[0_3px_0_0_rgba(22,163,74,1)]'} active:shadow-none`}
+                    >
+                      {show ? '🙈 가리기' : '✅ 정답 보기'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
