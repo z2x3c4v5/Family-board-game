@@ -304,6 +304,9 @@ export default function App() {
   }, [currentTask]);
 
   const speakText = (text, rate = 0.8) => {
+    if (!text) return;
+    // 한글이 들어간 안내 문구는 영어 음성으로 읽으면 이상하므로 읽지 않음
+    if (/[가-힣㄰-㆏ᄀ-ᇿ]/.test(text)) return;
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
