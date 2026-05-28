@@ -1174,6 +1174,19 @@ export default function App() {
                     ? '마이크를 누르고 질문과 대답을 모두 말해보세요!'
                     : '마이크를 누르고 영어로 대답하세요!'}
               </p>
+
+              <button
+                onClick={() => speakText(
+                  currentTask.taskType === 'relation' && currentTask.mode === 'qna'
+                    ? `${currentTask.question} ${currentTask.answer}`
+                    : currentTask.answer
+                )}
+                disabled={isListening}
+                className="mb-5 inline-flex items-center gap-2 px-5 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-800 border-2 border-amber-300 rounded-full font-bold shadow-sm transition-all active:translate-y-0.5 disabled:opacity-50"
+              >
+                🔊 정답 미리 듣기 (따라 말해보세요!)
+              </button>
+
               <button
                 onClick={startListening}
                 disabled={isListening || feedback.includes('Excellent')}
