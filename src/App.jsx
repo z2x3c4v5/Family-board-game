@@ -289,6 +289,7 @@ export default function App() {
   const [cellWriting, setCellWriting] = useState(false); // 쓰기 활동 화면 여부
   const [cellAnswerShown, setCellAnswerShown] = useState(false); // 정답 공개 여부
   const [clickedWord, setClickedWord] = useState(null); // 클릭한 단어 { word, meaning }
+  const [speakingDone, setSpeakingDone] = useState(false); // 말하기 차례 완료(정답/3회 시도)되어 넘어가는 중
 
   // --- 마이크 오류 방지 로직 ---
   const recognitionRef = useRef(null);
@@ -296,6 +297,7 @@ export default function App() {
   const isListeningRef = useRef(false);
   const answeredRef = useRef(false); // 한 번 정답 처리되면 중복 처리 방지
   const collectedRef = useRef([]); // 중간 결과 포함 모든 인식 후보 누적
+  const attemptsRef = useRef(0); // 현재 문제에서 실패한 시도 횟수
 
   useEffect(() => {
     currentTaskRef.current = currentTask;
@@ -543,6 +545,8 @@ export default function App() {
     setGameState('speaking');
     setSpokenText('');
     setFeedback('');
+    attemptsRef.current = 0;
+    setSpeakingDone(false);
 
     const built = buildTask(cell);
     setCurrentTask({ cell, ...built, mode: gameMode });
@@ -580,14 +584,28 @@ export default function App() {
     recognition.interimResults = true; // 중간 결과까지 받아 더 많은 기회를 확보
     recognition.maxAlternatives = 5; // 상위 5개 후보를 모두 받아 채점 정확도를 높임
 
-    const acceptCorrect = () => {
-      answeredRef.current = true;
-      setFeedback('Excellent! 정답입니다! 🎉 (AI 턴으로 넘어갑니다)');
-      speakText('Excellent!');
+    const goToAiTurn = () => {
       setTimeout(() => {
         setGameState('playing');
         setTurn('ai');
       }, 2500);
+    };
+
+    const acceptCorrect = () => {
+      answeredRef.current = true;
+      setSpeakingDone(true);
+      setFeedback('Excellent! 정답입니다! 🎉 (AI 턴으로 넘어갑니다)');
+      speakText('Excellent!');
+      goToAiTurn();
+    };
+
+    // 3번 시도해도 안 되면 격려하고 다음으로 넘어가기
+    const finishWithEncouragement = () => {
+      answeredRef.current = true;
+      setSpeakingDone(true);
+      setFeedback('3번 모두 도전했어요. 정말 잘했어요! 👏 다음 차례로 넘어가요!');
+      speakText('Good job!');
+      goToAiTurn();
     };
 
     recognition.onstart = () => {
@@ -635,12 +653,15 @@ export default function App() {
         acceptCorrect();
         return;
       }
-      const last = collectedRef.current[collectedRef.current.length - 1] || '';
-      if (last) {
-        setFeedback(`앗, 다시 해볼까요? (인식된 말: ${last})`);
-      } else {
-        setFeedback('잘 안 들렸어요. 마이크 버튼을 한 번 더 눌러볼까요? 🎤');
+      // 실패한 시도로 집계
+      attemptsRef.current += 1;
+      if (attemptsRef.current >= 3) {
+        finishWithEncouragement();
+        return;
       }
+      const last = collectedRef.current[collectedRef.current.length - 1] || '';
+      const heard = last ? `(인식된 말: ${last}) ` : '잘 안 들렸어요. ';
+      setFeedback(`앗, 다시 해볼까요? ${heard}— ${attemptsRef.current}/3번째 시도`);
     };
 
     recognitionRef.current = recognition;
@@ -1189,9 +1210,9 @@ export default function App() {
 
               <button
                 onClick={startListening}
-                disabled={isListening || feedback.includes('Excellent')}
+                disabled={isListening || speakingDone}
                 className={`w-24 h-24 rounded-full text-4xl shadow-[0_8px_0_0_rgba(0,0,0,0.15)] flex items-center justify-center mx-auto transition-all
-                  ${isListening ? 'bg-red-500 text-white animate-pulse shadow-none translate-y-2' : 'bg-green-500 text-white hover:bg-green-400 active:shadow-none active:translate-y-2'}`}
+                  ${isListening ? 'bg-red-500 text-white animate-pulse shadow-none translate-y-2' : speakingDone ? 'bg-gray-300 text-white cursor-not-allowed' : 'bg-green-500 text-white hover:bg-green-400 active:shadow-none active:translate-y-2'}`}
               >
                 {isListening ? '🎙️' : '🎤'}
               </button>
@@ -1206,7 +1227,7 @@ export default function App() {
               )}
 
               {feedback && (
-                <div className={`mt-4 text-xl font-black py-3 px-4 rounded-xl border-2 ${feedback.includes('정답') ? 'text-green-700 bg-green-100 border-green-300' : 'text-rose-600 bg-rose-50 border-rose-200'}`}>
+                <div className={`mt-4 text-xl font-black py-3 px-4 rounded-xl border-2 ${(feedback.includes('정답') || feedback.includes('잘했')) ? 'text-green-700 bg-green-100 border-green-300' : 'text-rose-600 bg-rose-50 border-rose-200'}`}>
                   {feedback}
                 </div>
               )}
