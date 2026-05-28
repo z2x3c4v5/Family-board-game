@@ -838,39 +838,24 @@ export default function App() {
         .face-top    { transform: rotateX(90deg) translateZ(64px); }
         .face-bottom { transform: rotateX(-90deg) translateZ(64px); }
 
-        /* 영어 공책(4선) 위에 문장 표시 - 줄 위치를 글자 크기(em)에 맞춤 */
+        /* 영어 공책 괘선 위에 문장 표시
+           - line-height 1.8em 한 줄마다 괘선이 반복되어 줄바꿈돼도 어긋나지 않음
+           - 글자 baseline(=1.2em)에 빨간 기준선, 0.7em에 x-height(소문자), 0.48em에 대문자 윗줄 */
         .eng-line {
-          position: relative;
-          display: flex;
-          flex-wrap: wrap;
-          align-items: baseline;
-          gap: 0 0.3rem;
-          font-size: clamp(2rem, 7vw, 2.6rem);
-          line-height: 1;
-          padding: 0.25em 0.5rem 0.2em;        /* 위: ascender 공간, 아래: descender 공간 */
-          background-repeat: no-repeat;
-          background-image: linear-gradient(#f87171, #f87171);  /* 기준선(빨강) */
-          background-size: 100% 3px;
-          background-position: left bottom 0.4em; /* 글자 baseline 위치(아래여백+descent) */
-        }
-        .eng-line::before {                    /* 맨 윗줄 (대문자·ascender 높이) */
-          content: '';
-          position: absolute;
-          left: 0; right: 0;
-          bottom: 1.12em;                       /* baseline + 약 0.72em (대문자 높이) */
-          border-top: 2px solid #cbd5e1;
-        }
-        .eng-line::after {                     /* 가운데 점선 (소문자 x-height) */
-          content: '';
-          position: absolute;
-          left: 0; right: 0;
-          bottom: 0.9em;                        /* baseline + 약 0.5em (소문자 높이) */
-          border-top: 2px dashed #93c5fd;
+          font-size: clamp(1.55rem, 5.2vw, 2rem);
+          line-height: 1.8;
+          padding: 0 0.4rem;
+          word-spacing: 0.1em;
+          background-image:
+            repeating-linear-gradient(to bottom, transparent 0, transparent calc(1.2em - 1.5px), #f87171 calc(1.2em - 1.5px), #f87171 calc(1.2em + 1.5px), transparent calc(1.2em + 1.5px), transparent 1.8em),
+            repeating-linear-gradient(to bottom, transparent 0, transparent calc(0.7em - 1px), #93c5fd calc(0.7em - 1px), #93c5fd calc(0.7em + 1px), transparent calc(0.7em + 1px), transparent 1.8em),
+            repeating-linear-gradient(to bottom, transparent 0, transparent calc(0.48em - 1px), #cbd5e1 calc(0.48em - 1px), #cbd5e1 calc(0.48em + 1px), transparent calc(0.48em + 1px), transparent 1.8em);
         }
         .eng-blank {                           /* 빈칸: 기준선~점선 사이(소문자 칸) 밑줄 */
           display: inline-block;
           height: 0.5em;
           border-bottom: 4px solid #a78bfa;
+          vertical-align: baseline;
         }
       `}</style>
 
@@ -1459,25 +1444,17 @@ export default function App() {
 
               <div className="space-y-3 mb-4 text-left">
                 {card.question && (
-                  <div className="bg-white border-2 border-blue-100 rounded-2xl px-3 pt-2 pb-1">
-                    <p className="text-xs font-black text-blue-500 tracking-wide">QUESTION · 질문</p>
+                  <div className="bg-white border-2 border-blue-100 rounded-2xl px-3 pt-2 pb-2">
+                    <p className="text-xs font-black text-blue-500 tracking-wide mb-1">QUESTION · 질문</p>
                     <div className="eng-line font-black text-slate-700">
-                      <span>Who</span><span>is</span>{blank('3.5rem')}<span>?</span>
+                      Who is {blank('3rem')}?
                     </div>
                   </div>
                 )}
-                <div className="bg-white border-2 border-amber-100 rounded-2xl px-3 pt-2 pb-1">
-                  <p className="text-xs font-black text-amber-600 tracking-wide">{card.question ? 'ANSWER · 대답' : 'SENTENCE · 문장'}</p>
+                <div className="bg-white border-2 border-amber-100 rounded-2xl px-3 pt-2 pb-2">
+                  <p className="text-xs font-black text-amber-600 tracking-wide mb-1">{card.question ? 'ANSWER · 대답' : 'SENTENCE · 문장'}</p>
                   <div className="eng-line font-black text-slate-700">
-                    {card.question ? (
-                      <>
-                        {blank('3rem')}<span>'s</span><span>my</span>{blank('6.5rem')}<span>.</span>
-                      </>
-                    ) : (
-                      <>
-                        {blank('3rem')}<span>'s</span>{blank('5.5rem')}<span>.</span>
-                      </>
-                    )}
+                    {card.question ? <>{blank('2.6rem')}'s my {blank('5.5rem')}.</> : <>{blank('2.6rem')}'s {blank('4.5rem')}.</>}
                   </div>
                 </div>
               </div>
