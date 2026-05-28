@@ -837,6 +837,30 @@ export default function App() {
         .face-left   { transform: rotateY(-90deg) translateZ(64px); }
         .face-top    { transform: rotateX(90deg) translateZ(64px); }
         .face-bottom { transform: rotateX(-90deg) translateZ(64px); }
+
+        /* 영어 공책(4선) 위에 문장 표시 */
+        .eng-line {
+          position: relative;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: flex-end;
+          gap: 0 0.4rem;
+          padding: 1.7rem 0.6rem 0.45rem;
+          border-bottom: 3px solid #f87171;   /* 기준선(빨강) */
+          line-height: 1.05;
+        }
+        .eng-line::before {                    /* 맨 윗줄 */
+          content: '';
+          position: absolute;
+          left: 0; right: 0; top: 0.5rem;
+          border-top: 2px solid #cbd5e1;
+        }
+        .eng-line::after {                     /* 가운데 점선 */
+          content: '';
+          position: absolute;
+          left: 0; right: 0; top: 50%;
+          border-top: 2px dashed #93c5fd;
+        }
       `}</style>
 
       {/* 따뜻한 가족 분위기 배경 */}
@@ -1419,21 +1443,21 @@ export default function App() {
               </div>
 
               <p className="text-sm font-black text-indigo-600 mb-4">
-                📝 빈칸을 채워 공책에 써보세요!
+                📝 영어 공책 줄에 맞춰 빈칸을 채워 써보세요!
               </p>
 
               <div className="space-y-3 mb-4 text-left">
                 {card.question && (
-                  <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-4">
-                    <p className="text-xs font-black text-blue-500 tracking-wide mb-2">QUESTION · 질문</p>
-                    <p className="text-2xl md:text-3xl font-black text-slate-700 tracking-wide flex flex-wrap items-end gap-x-2">
+                  <div className="bg-white border-2 border-blue-100 rounded-2xl px-3 pt-2 pb-1">
+                    <p className="text-xs font-black text-blue-500 tracking-wide">QUESTION · 질문</p>
+                    <div className="eng-line text-2xl md:text-3xl font-black text-slate-700 tracking-wide">
                       <span>Who</span><span>is</span>{blank('w-16')}<span>?</span>
-                    </p>
+                    </div>
                   </div>
                 )}
-                <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-4">
-                  <p className="text-xs font-black text-amber-600 tracking-wide mb-2">{card.question ? 'ANSWER · 대답' : 'SENTENCE · 문장'}</p>
-                  <p className="text-2xl md:text-3xl font-black text-slate-700 tracking-wide flex flex-wrap items-end gap-x-2">
+                <div className="bg-white border-2 border-amber-100 rounded-2xl px-3 pt-2 pb-1">
+                  <p className="text-xs font-black text-amber-600 tracking-wide">{card.question ? 'ANSWER · 대답' : 'SENTENCE · 문장'}</p>
+                  <div className="eng-line text-2xl md:text-3xl font-black text-slate-700 tracking-wide">
                     {card.question ? (
                       <>
                         {blank('w-14')}<span>'s</span><span>my</span>{blank('w-28')}<span>.</span>
@@ -1443,17 +1467,20 @@ export default function App() {
                         {blank('w-14')}<span>'s</span>{blank('w-24')}<span>.</span>
                       </>
                     )}
-                  </p>
+                  </div>
                 </div>
               </div>
 
               {writeRevealed && (
-                <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-4 mb-4 text-left">
-                  {card.question && <p className="text-xl md:text-2xl font-black text-green-700">Q. {card.question}</p>}
-                  <p className="text-xl md:text-2xl font-black text-green-700">{card.question ? 'A. ' : ''}{card.answer}</p>
+                <div className="bg-green-50 border-2 border-green-200 rounded-2xl px-3 pt-2 pb-3 mb-4 text-left">
+                  <p className="text-xs font-black text-green-600 tracking-wide mb-1">✅ 정답</p>
+                  {card.question && (
+                    <div className="eng-line text-2xl md:text-3xl font-black text-green-700 tracking-wide">{`Q. ${card.question}`}</div>
+                  )}
+                  <div className="eng-line text-2xl md:text-3xl font-black text-green-700 tracking-wide">{card.question ? `A. ${card.answer}` : card.answer}</div>
                   <button
                     onClick={() => speakText(card.question ? `${card.question} ... ${card.answer}` : card.answer)}
-                    className="mt-2 text-sm font-bold text-indigo-600 bg-white border-2 border-indigo-200 hover:bg-indigo-50 px-4 py-1.5 rounded-full transition-colors"
+                    className="mt-3 text-sm font-bold text-indigo-600 bg-white border-2 border-indigo-200 hover:bg-indigo-50 px-4 py-1.5 rounded-full transition-colors"
                   >
                     🔊 들어보기
                   </button>
